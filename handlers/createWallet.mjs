@@ -13,7 +13,6 @@ export async function handleCreateWallet(chatId, messageId) {
     const privateKey = wallet.privateKey;
 
     const encryptedPrivateKey = await encrypt(privateKey);
-    console.log(`Encrypted private key:`, encryptedPrivateKey.toString('base64'), `Encrypted raw private key`, encryptedPrivateKey);
 
     // Private key message
     const privateKeyMessage = 

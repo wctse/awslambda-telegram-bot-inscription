@@ -1,6 +1,7 @@
 // Encryption and decryption functions using AWS KMS
-import { aws } from 'aws-sdk';
-const kms = new aws.KMS();
+import AWS from 'aws-sdk';
+
+const kms = new AWS.KMS();
 const kmsKeyId = process.env.kmsKeyId;
 
 export async function encrypt(plaintext) {
@@ -28,6 +29,10 @@ export async function decrypt(ciphertextBlob) {
     if (!Buffer.isBuffer(ciphertextBlob)) {
         throw new Error('Ciphertext must be a buffer');
     }
+
+    const params = {
+        CiphertextBlob: ciphertextBlob
+    };
     
     try {
         const data = await kms.decrypt(params).promise();
