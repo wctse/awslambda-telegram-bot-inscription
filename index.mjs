@@ -1,5 +1,6 @@
 import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
+import { handleViewWallet } from './handlers/viewWallet.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -25,6 +26,10 @@ export async function handler(event, context) {
 
         if (data === 'create_wallet') {
             await handleCreateWallet(chatId);
+        }
+
+        else if (data === 'view_wallet') {
+            await handleViewWallet(chatId);
         }
     }
     
