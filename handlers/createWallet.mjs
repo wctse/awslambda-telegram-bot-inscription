@@ -1,18 +1,50 @@
 import { ethers } from 'ethers';
 
 import { bot } from './bot.mjs';
-import { encrypt, decrypt } from '../helpers/kms.mjs';
+import { encrypt } from '../helpers/kms.mjs';
+import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDb } from '../helpers/dynamodb.mjs';
 
-export async function handleCreateWallet(chatId, messageId) {
+export async function handleCreateWallet(chatId) {
+    const userTable = process.env.USERTABLENAME;
+    const walletExistsForUser = await checkPartitionValueExistsInDynamoDb(userTable, `userId`, chatId )
+
+    if (walletExistsForUser) {
+        console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");
+
+        const walletExistsMessage = `⚠️ You already have a wallet. You can view your wallet's address by tapping the button below.`;
+        const walletExistsKeyboard = {
+            inline_keyboard: [[
+                { text: "View wallet", callback_data: "view_wallet" }, // TODO: Implement view wallet handler
+                { text: "Main menu", callback_data: "main_menu" }
+            ]]
+        };
+
+        await bot.sendMessage(chatId, walletExistsMessage, { reply_markup: walletExistsKeyboard });
+        return;
+    }
     
     await bot.sendMessage(chatId, "⏳ Creating wallet...");
     
     // Generate a new Ethereum wallet
     const wallet = ethers.Wallet.createRandom();
-    const address = wallet.address;
+    const publicAddress = wallet.address;
     const privateKey = wallet.privateKey;
 
     const encryptedPrivateKey = await encrypt(privateKey);
+
+    // DynamoDB user data table item
+    const newUserItem = {
+        userId: chatId, // Partition key; For Telegram bots, chatId == userId
+        publicAddress: publicAddress, // Sort key for flexibility to supporting multiple wallets per user in the future
+        chainName: "Ethereum", // TODO: Make this configurable when adding support for other blockchains
+        encryptedPrivateKey: encryptedPrivateKey,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now(),
+    };
+
+    // Add the user's wallet to DynamoDB
+    console.info("Adding new user to DynamoDB:", chatId, publicAddress)
+    await addItemToDynamoDB(userTable, newUserItem);
 
     // Private key message
     const privateKeyMessage = 
@@ -24,7 +56,7 @@ export async function handleCreateWallet(chatId, messageId) {
     const publicAddressMessage = 
         `✅ Your new Ethereum wallet has been created.\n` + 
         `\n` + 
-        `Address: \`${address}\``;
+        `Address: \`${publicAddress}\``;
 
     const publicAddressKeyboard = {
             inline_keyboard: [[

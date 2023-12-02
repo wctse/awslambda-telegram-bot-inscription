@@ -2,7 +2,7 @@
 import AWS from 'aws-sdk';
 
 const kms = new AWS.KMS();
-const kmsKeyId = process.env.kmsKeyId;
+const kmsKeyId = process.env.KMSKEYID;
 
 export async function encrypt(plaintext) {
     if (typeof plaintext !== 'string') {

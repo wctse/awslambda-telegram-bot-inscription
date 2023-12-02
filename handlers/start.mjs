@@ -1,6 +1,6 @@
 import { bot } from './bot.mjs';
 
-export async function handleStart(message, chatId) {
+export async function handleStart(chatId) {
     const keyboard = {
         inline_keyboard: [[
             { text: "Create wallet", callback_data: "create_wallet" }
