@@ -1,5 +1,6 @@
 import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
+import { handleMainMenu } from './handlers/mainMenu.mjs';
 import { handleViewWallet } from './handlers/viewWallet.mjs';
 
 export async function handler(event, context) {
@@ -30,6 +31,10 @@ export async function handler(event, context) {
 
         else if (data === 'view_wallet') {
             await handleViewWallet(chatId);
+        }
+
+        else if (data === 'main_menu') {
+            await handleMainMenu(chatId);
         }
     }
     

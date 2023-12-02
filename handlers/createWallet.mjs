@@ -14,8 +14,8 @@ export async function handleCreateWallet(chatId) {
         const walletExistsMessage = `⚠️ You already have a wallet. You can view your wallet's address by tapping the button below.`;
         const walletExistsKeyboard = {
             inline_keyboard: [[
-                { text: "View wallet", callback_data: "view_wallet" }, // TODO: Implement view wallet handler
-                { text: "Main menu", callback_data: "main_menu" }
+                { text: "💰 View wallet", callback_data: "view_wallet" }, // TODO: Implement view wallet handler
+                { text: "📃 Main menu", callback_data: "main_menu" }
             ]]
         };
 
@@ -60,7 +60,7 @@ export async function handleCreateWallet(chatId) {
 
     const publicAddressKeyboard = {
             inline_keyboard: [[
-                { text: "Main menu", callback_data: "main_menu" }
+                { text: "📃 Main menu", callback_data: "main_menu" }
             ]]
         };
 

@@ -14,8 +14,8 @@ export async function getEthBalance(publicAddress) {
 
 export async function getCurrentGasPrice() {
     try {
-        const gasPrice = await provider.getGasPrice();
-        return ethers.formatUnits(gasPrice, 'gwei'); // Converts the gas price from Wei to Gwei
+        const feeData = await provider.getFeeData();
+        return ethers.formatUnits(feeData.gasPrice, 'gwei'); 
     } catch (error) {
         console.error('Error getting current gas price:', error);
         throw error;

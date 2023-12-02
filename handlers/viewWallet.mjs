@@ -20,9 +20,12 @@ export async function handleViewWallet(chatId) {
 
     const viewWalletKeyboard = {
         inline_keyboard: [[
-            { text: "Main menu", callback_data: "main_menu" }
+            { text: "📃 Main menu", callback_data: "main_menu" },
+            { text: "🔄 Refresh", callback_data: "refresh_view_wallet" }
         ]]
     };
 
     await bot.sendMessage(chatId, viewWalletMessage, { parse_mode: 'Markdown', reply_markup: viewWalletKeyboard });
 }
+
+// TODO: Implement view wallet refresh handler
