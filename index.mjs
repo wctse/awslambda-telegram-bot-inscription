@@ -1,7 +1,9 @@
 import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
-import { handleMainMenu } from './handlers/mainMenu.mjs';
-import { handleViewWallet } from './handlers/viewWallet.mjs';
+import { handleMainMenu, handleRefreshMainMenu } from './handlers/mainMenu.mjs';
+import { handleViewWallet, handleRefreshViewWallet } from './handlers/viewWallet.mjs';
+import { handleInscribe } from './handlers/inscribe.mjs';
+import { handleTransfer } from './handlers/transfer.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -10,33 +12,52 @@ export async function handler(event, context) {
     if (update.message) {
         const message = update.message;
         const chatId = message.chat.id;
+        const text = message.text.split()[0].replace('/', '').toLowerCase();
 
-        if (message.text) {
-            const command = message.text.split()[0].replace('/', '').toLowerCase();
-
-            if (command === 'start') {
+        switch (text) {
+            case 'start':
                 await handleStart(chatId);
-            }
+                break;
+            default:
+                console.info('Unknown message received:', message);
+                break;
         }
         
     } else if (update.callback_query) {
         const callbackQuery = update.callback_query;
-        
         const chatId = callbackQuery.message.chat.id;
+        const messageId = callbackQuery.message.message_id;
         const data = callbackQuery.data;
 
-        if (data === 'create_wallet') {
-            await handleCreateWallet(chatId);
-        }
-
-        else if (data === 'view_wallet') {
-            await handleViewWallet(chatId);
-        }
-
-        else if (data === 'main_menu') {
-            await handleMainMenu(chatId);
+        switch (data) {
+            case 'create_wallet':
+                await handleCreateWallet(chatId);
+                break;
+            case 'view_wallet':
+                await handleViewWallet(chatId);
+                break;
+            case 'refresh_view_wallet':
+                await handleRefreshViewWallet(chatId, messageId);
+                break;
+            case 'main_menu':
+                await handleMainMenu(chatId);
+                break;
+            case 'refresh_main_menu':
+                await handleRefreshMainMenu(chatId, messageId);
+                break;
+            case 'inscribe':
+                await handleInscribe(chatId);
+                break;
+            case 'transfer':
+                await handleTransfer(chatId);
+                break;
+            default:
+                console.info('Unknown callback query received:', callbackQuery);
+                break;
         }
     }
+
+    else {console.info('Unknown update received:', update)}
     
     return {
         statusCode: 200,

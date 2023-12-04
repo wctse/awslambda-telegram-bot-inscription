@@ -1,6 +1,7 @@
 import { bot } from './bot.mjs';
 import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamodb.mjs';
 import { getEthBalance } from '../helpers/ethers.mjs';
+import { deleteMessage } from '../helpers/botActions.mjs';
 
 export async function handleViewWallet(chatId) {
     const userTable = process.env.USERTABLENAME;
@@ -28,4 +29,7 @@ export async function handleViewWallet(chatId) {
     await bot.sendMessage(chatId, viewWalletMessage, { parse_mode: 'Markdown', reply_markup: viewWalletKeyboard });
 }
 
-// TODO: Implement view wallet refresh handler
+export async function handleRefreshViewWallet(chatId, oldMessageId) {
+    await handleViewWallet(chatId);
+    await deleteMessage(chatId, oldMessageId);
+}

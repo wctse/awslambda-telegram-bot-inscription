@@ -1,5 +1,6 @@
 import { bot } from './bot.mjs';
 import { getCurrentGasPrice } from '../helpers/ethers.mjs';
+import { deleteMessage } from '../helpers/botActions.mjs';
 
 export async function handleMainMenu(chatId) {
     const currentGasPrice = await getCurrentGasPrice();
@@ -26,4 +27,7 @@ export async function handleMainMenu(chatId) {
     await bot.sendMessage(chatId, mainMenuMessage, { reply_markup: mainMenuKeyboard });
 }
 
-// TODO: Implement main menu refresh handler
+export async function handleRefreshMainMenu(chatId, oldMessageId) {
+    await handleMainMenu(chatId);
+    await deleteMessage(chatId, oldMessageId);
+}
