@@ -1,6 +1,5 @@
 import { bot } from './bot.mjs';
 import { getCurrentGasPrice } from '../helpers/ethers.mjs';
-import { deleteMessage } from '../helpers/botActions.mjs';
 
 export async function handleMainMenu(chatId) {
     const currentGasPrice = await getCurrentGasPrice();
