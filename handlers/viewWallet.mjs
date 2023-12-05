@@ -1,7 +1,6 @@
 import { bot } from './bot.mjs';
-import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDb.mjs';
+import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
 import { getEthBalance } from '../helpers/ethers.mjs';
-import { deleteMessage } from '../helpers/botActions.mjs';
 
 export async function handleViewWallet(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;

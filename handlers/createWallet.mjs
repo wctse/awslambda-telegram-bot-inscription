@@ -2,11 +2,11 @@ import { ethers } from 'ethers';
 
 import { bot } from './bot.mjs';
 import { encrypt } from '../helpers/kms.mjs';
-import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDb } from '../helpers/dynamoDb.mjs';
+import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB } from '../helpers/dynamoDB.mjs';
 
 export async function handleCreateWallet(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletExistsForUser = await checkPartitionValueExistsInDynamoDb(walletTable, `userId`, chatId )
+    const walletExistsForUser = await checkPartitionValueExistsInDynamoDB(walletTable, `userId`, chatId );
 
     if (walletExistsForUser) {
         console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");
@@ -32,7 +32,7 @@ export async function handleCreateWallet(chatId) {
 
     const encryptedPrivateKey = await encrypt(privateKey);
 
-    // DynamoDB user data table item
+    // DynamoDB wallet data table item
     const newUserItem = {
         userId: chatId, // Partition key; For Telegram bots, chatId == userId
         publicAddress: publicAddress, // Sort key for flexibility to supporting multiple wallets per user in the future
@@ -43,7 +43,7 @@ export async function handleCreateWallet(chatId) {
     };
 
     // Add the user's wallet to DynamoDB
-    console.info("Adding new user to DynamoDB:", chatId, publicAddress)
+    console.info("Adding new user to DynamoDB:", chatId, publicAddress);
     await addItemToDynamoDB(walletTable, newUserItem);
 
     // Private key message
