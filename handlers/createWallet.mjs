@@ -2,11 +2,11 @@ import { ethers } from 'ethers';
 
 import { bot } from './bot.mjs';
 import { encrypt } from '../helpers/kms.mjs';
-import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDb } from '../helpers/dynamodb.mjs';
+import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDb } from '../helpers/dynamoDb.mjs';
 
 export async function handleCreateWallet(chatId) {
-    const userTable = process.env.USERTABLENAME;
-    const walletExistsForUser = await checkPartitionValueExistsInDynamoDb(userTable, `userId`, chatId )
+    const walletTable = process.env.WALLET_TABLE_NAME;
+    const walletExistsForUser = await checkPartitionValueExistsInDynamoDb(walletTable, `userId`, chatId )
 
     if (walletExistsForUser) {
         console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");
@@ -44,7 +44,7 @@ export async function handleCreateWallet(chatId) {
 
     // Add the user's wallet to DynamoDB
     console.info("Adding new user to DynamoDB:", chatId, publicAddress)
-    await addItemToDynamoDB(userTable, newUserItem);
+    await addItemToDynamoDB(walletTable, newUserItem);
 
     // Private key message
     const privateKeyMessage = 

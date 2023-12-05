@@ -2,7 +2,7 @@
 import AWS from 'aws-sdk';
 
 const kms = new AWS.KMS();
-const kmsKeyId = process.env.KMSKEYID;
+const kmsKeyId = process.env.KMS_KEY_ID;
 
 export async function encrypt(plaintext) {
     if (typeof plaintext !== 'string') {
@@ -22,7 +22,6 @@ export async function encrypt(plaintext) {
         throw error;
     }
 }
-
 
 export async function decrypt(ciphertextBlob) {
 

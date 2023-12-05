@@ -3,7 +3,7 @@ import { bot } from './bot.mjs';
 export async function handleTransfer(chatId) {
     const keyboard = {
         inline_keyboard: [[
-            { text: "📃 Main menu", callback_data: "main_menu" }
+            { text: "↩️ Main menu", callback_data: "main_menu" }
         ]]
     };
     

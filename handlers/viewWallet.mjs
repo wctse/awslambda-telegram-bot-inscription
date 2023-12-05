@@ -1,11 +1,11 @@
 import { bot } from './bot.mjs';
-import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamodb.mjs';
+import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDb.mjs';
 import { getEthBalance } from '../helpers/ethers.mjs';
 import { deleteMessage } from '../helpers/botActions.mjs';
 
 export async function handleViewWallet(chatId) {
-    const userTable = process.env.USERTABLENAME;
-    const userItem = await getItemsByPartitionKeyFromDynamoDB(userTable, 'userId', chatId); // TODO: When multiple wallets is implemented, this should be changed to get all wallets for a user
+    const walletTable = process.env.WALLET_TABLE_NAME;
+    const userItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId); // TODO: When multiple wallets is implemented, this should be changed to get all wallets for a user
 
     const publicAddress = userItem[0].publicAddress;
     const chainName = userItem[0].chainName;
@@ -27,9 +27,4 @@ export async function handleViewWallet(chatId) {
     };
 
     await bot.sendMessage(chatId, viewWalletMessage, { parse_mode: 'Markdown', reply_markup: viewWalletKeyboard });
-}
-
-export async function handleRefreshViewWallet(chatId, oldMessageId) {
-    await handleViewWallet(chatId);
-    await deleteMessage(chatId, oldMessageId);
 }

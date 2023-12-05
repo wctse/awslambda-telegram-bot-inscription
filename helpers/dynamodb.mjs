@@ -1,6 +1,6 @@
 import AWS from 'aws-sdk';
 
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+const dynamoDb = new AWS.DynamoDB.DocumentClient();
 
 // Add an item to a DynamoDB table
 export async function addItemToDynamoDB(tableName, item) {
@@ -10,7 +10,7 @@ export async function addItemToDynamoDB(tableName, item) {
     };
 
     try {
-        await dynamodb.put(params).promise();
+        await dynamoDb.put(params).promise();
     } catch (error) {
         console.error('Error adding item to DynamoDB:', error);
         throw error;
@@ -28,7 +28,7 @@ export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKey
     };
 
     try {
-        const data = await dynamodb.query(params).promise();
+        const data = await dynamoDb.query(params).promise();
         return data.Items;
     } catch (error) {
         console.error('Error getting items from DynamoDB:', error);
@@ -49,7 +49,7 @@ export async function checkPartitionValueExistsInDynamoDb(tableName, partitionKe
     };
 
     try {
-        const data = await dynamodb.query(params).promise();
+        const data = await dynamoDb.query(params).promise();
         return data.Items.length > 0;
     } catch (error) {
         console.error('Error checking items in DynamoDB:', error);
@@ -68,7 +68,7 @@ export async function checkPartitionValueExistsInDynamoDb(tableName, partitionKe
 //     };
 
 //     try {
-//         const data = await dynamodb.get(params).promise();
+//         const data = await dynamoDb.get(params).promise();
 //         return data.Item;
 //     } catch (error) {
 //         console.error('Error getting item from DynamoDB:', error);

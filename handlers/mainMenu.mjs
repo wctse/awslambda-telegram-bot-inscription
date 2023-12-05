@@ -26,8 +26,3 @@ export async function handleMainMenu(chatId) {
 
     await bot.sendMessage(chatId, mainMenuMessage, { reply_markup: mainMenuKeyboard });
 }
-
-export async function handleRefreshMainMenu(chatId, oldMessageId) {
-    await handleMainMenu(chatId);
-    await deleteMessage(chatId, oldMessageId);
-}

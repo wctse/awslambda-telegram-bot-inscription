@@ -1,9 +1,10 @@
 import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
-import { handleMainMenu, handleRefreshMainMenu } from './handlers/mainMenu.mjs';
-import { handleViewWallet, handleRefreshViewWallet } from './handlers/viewWallet.mjs';
+import { handleMainMenu } from './handlers/mainMenu.mjs';
+import { handleViewWallet } from './handlers/viewWallet.mjs';
 import { handleInscribe } from './handlers/inscribe.mjs';
 import { handleTransfer } from './handlers/transfer.mjs';
+import { deleteMessage } from './helpers/botActions.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -37,13 +38,15 @@ export async function handler(event, context) {
                 await handleViewWallet(chatId);
                 break;
             case 'refresh_view_wallet':
-                await handleRefreshViewWallet(chatId, messageId);
+                await handleViewWallet(chatId, messageId);
+                await deleteMessage(chatId, messageId);
                 break;
             case 'main_menu':
                 await handleMainMenu(chatId);
                 break;
             case 'refresh_main_menu':
-                await handleRefreshMainMenu(chatId, messageId);
+                await handleMainMenu(chatId, messageId);
+                await deleteMessage(chatId, messageId);
                 break;
             case 'inscribe':
                 await handleInscribe(chatId);
