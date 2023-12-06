@@ -40,7 +40,7 @@ export async function editItemInDynamoDB(tableName, key, updates) {
 }
 
 // Update the user state in the user table
-export async function editUserState(userId, state) {
+export async function editUserState(userId, userState) {
     const userTable = process.env.USER_TABLE_NAME;
 
     const key = {
@@ -48,7 +48,7 @@ export async function editUserState(userId, state) {
     };
 
     const updates = {
-        state: state
+        userState: userState
     };
 
     await editItemInDynamoDB(userTable, key, updates);
@@ -63,7 +63,7 @@ export async function getUserState(userId) {
         return null;
     }
 
-    return userItems[0].state;
+    return userItems[0].userState;
 }
 
 // Get all items for a specific partition key value from a DynamoDB table

@@ -29,8 +29,8 @@ export async function handleInscribeStep1(chatId) {
     // If the user input the inscription data directly, the bot will jump to the review step
     const step1Message = "Please choose the token standard to use, or input the whole inscription data directly.";
 
-    await bot.sendMessage(chatId, step1Message, { reply_markup: step1Keyboard });
     await editUserState(chatId, 'INSCRIBE_STEP1');
+    await bot.sendMessage(chatId, step1Message, { reply_markup: step1Keyboard });
 }
 
 // Step 2: Receive the token standard and ask the user to input the token ticker
