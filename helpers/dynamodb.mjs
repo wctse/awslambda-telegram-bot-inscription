@@ -39,6 +39,33 @@ export async function editItemInDynamoDB(tableName, key, updates) {
     }
 }
 
+// Update the user state in the user table
+export async function editUserState(userId, state) {
+    const userTable = process.env.USER_TABLE_NAME;
+
+    const key = {
+        userId: userId
+    };
+
+    const updates = {
+        state: state
+    };
+
+    await editItemInDynamoDB(userTable, key, updates);
+}
+
+// Get the user state from the user table
+export async function getUserState(userId) {
+    const userTable = process.env.USER_TABLE_NAME;
+    const userItems = await getItemsByPartitionKeyFromDynamoDB(userTable, `userId`, userId);
+
+    if (userItems.length === 0) {
+        return null;
+    }
+
+    return userItems[0].state;
+}
+
 // Get all items for a specific partition key value from a DynamoDB table
 export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKeyName, partitionKeyValue) {
     const params = {
@@ -56,6 +83,18 @@ export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKey
         console.error('Error getting items from DynamoDB:', error);
         throw error;
     }
+}
+
+// Get the wallet address for a specific user ID
+export async function getWalletAddressByUserId(userId) {
+    const walletTable = process.env.WALLET_TABLE_NAME;
+    const walletItems = await getItemsByPartitionKeyFromDynamoDB(walletTable, `userId`, userId);
+
+    if (walletItems.length === 0) {
+        return null;
+    }
+
+    return walletItems[0].publicAddress;
 }
 
 // Check if any items for a specific partition key value exists in a DynamoDB table

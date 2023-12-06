@@ -1,4 +1,4 @@
-import { bot } from './bot.mjs';
+import { bot } from '../helpers/bot.mjs';
 import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
 import { getEthBalance } from '../helpers/ethers.mjs';
 

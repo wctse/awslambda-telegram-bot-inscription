@@ -1,4 +1,4 @@
-import { bot } from './bot.mjs';
+import { bot } from '../helpers/bot.mjs';
 import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB } from '../helpers/dynamoDB.mjs';
 import { handleMainMenu } from './mainMenu.mjs';
 

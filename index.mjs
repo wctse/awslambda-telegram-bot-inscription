@@ -2,11 +2,11 @@ import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
 import { handleMainMenu } from './handlers/mainMenu.mjs';
 import { handleViewWallet } from './handlers/viewWallet.mjs';
-import { handleInscribe } from './handlers/inscribe.mjs';
+import { handleInscribeStep1, handleInscribeStep2, handleInscribeStep3, handleInscribeStep4, handleInscribeStep5 } from './handlers/inscribe.mjs';
 import { handleTransfer } from './handlers/transfer.mjs';
 
-import { deleteMessage } from './helpers/botActions.mjs';
-import { editItemInDynamoDB } from './helpers/dynamoDB.mjs';
+import { deleteMessage } from './helpers/bot.mjs';
+import { editItemInDynamoDB, getUserState } from './helpers/dynamoDB.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -16,17 +16,20 @@ export async function handler(event, context) {
     if (update.message) {
         const message = update.message;
         const chatId = message.chat.id;
-        const text = message.text.split()[0].replace('/', '').toLowerCase();
+        const text = message.text
+        const userState = await getUserState(chatId);
 
         await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
 
-        switch (text) {
-            case 'start':
-                await handleStart(chatId);
-                break;
-            default:
-                console.info('Unknown message received:', message);
-                break;
+        if (text === '/start') {
+            await handleStart(chatId);
+
+        } else if (text.startsWith('data:') && userState === 'INSCRIBE_STEP1') {
+            await handleInscribeStep4(chatId, text);
+
+        } else {
+            console.info('Unknown message received:', message);
+
         }
         
     } else if (update.callback_query) {
@@ -45,18 +48,22 @@ export async function handler(event, context) {
                 await handleViewWallet(chatId);
                 break;
             case 'refresh_view_wallet':
-                await handleViewWallet(chatId, messageId);
-                await deleteMessage(chatId, messageId);
+                await handleViewWallet(chatId);
                 break;
             case 'main_menu':
                 await handleMainMenu(chatId);
                 break;
             case 'refresh_main_menu':
-                await handleMainMenu(chatId, messageId);
-                await deleteMessage(chatId, messageId);
+                await handleMainMenu(chatId);
                 break;
             case 'inscribe':
-                await handleInscribe(chatId);
+                await handleInscribeStep1(chatId);
+                break;
+            case 'inscribe_step1_erc20':
+                await handleInscribeStep2(chatId, 'erc-20');
+                break;
+            case 'inscribe_step1_ierc20':
+                await handleInscribeStep2(chatId, 'ierc-20');
                 break;
             case 'transfer':
                 await handleTransfer(chatId);
@@ -64,6 +71,10 @@ export async function handler(event, context) {
             default:
                 console.info('Unknown callback query received:', callbackQuery);
                 break;
+        }
+
+        if (data.includes('refresh')) {
+            await deleteMessage(chatId, messageId);
         }
     }
 

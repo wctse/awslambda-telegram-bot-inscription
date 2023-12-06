@@ -1,4 +1,4 @@
-import { bot } from './bot.mjs';
+import { bot } from '../helpers/bot.mjs';
 
 export async function handleTransfer(chatId) {
     const keyboard = {

@@ -1,4 +1,4 @@
-import { bot } from './bot.mjs';
+import { bot } from '../helpers/bot.mjs';
 import { getCurrentGasPrice } from '../helpers/ethers.mjs';
 
 export async function handleMainMenu(chatId) {

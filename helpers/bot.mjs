@@ -1,4 +1,7 @@
-import { bot } from '../handlers/bot.mjs';
+import TelegramBot from 'node-telegram-bot-api';
+const token = process.env.TOKEN;
+
+export const bot = new TelegramBot(token);
 
 export async function deleteMessage(chatId, messageId) {
     try {

@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { bot } from './bot.mjs';
+import { bot } from '../helpers/bot.mjs';
 import { encrypt } from '../helpers/kms.mjs';
 import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB } from '../helpers/dynamoDB.mjs';
 
