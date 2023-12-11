@@ -66,6 +66,22 @@ export async function getUserState(userId) {
     return userItems[0].userState;
 }
 
+// Get an item from a DynamoDB table by its key
+export async function getItemFromDynamoDB(tableName, key) {
+    const params = {
+        TableName: tableName,
+        Key: key
+    };
+
+    try {
+        const data = await dynamoDB.get(params).promise();
+        return data.Item;
+    } catch (error) {
+        console.error('Error getting item from DynamoDB:', error);
+        throw error;
+    }
+}
+
 // Get all items for a specific partition key value from a DynamoDB table
 export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKeyName, partitionKeyValue) {
     const params = {
@@ -86,9 +102,9 @@ export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKey
 }
 
 // Get the wallet address for a specific user ID
-export async function getWalletAddressByUserId(userId) {
+export async function getWalletAddressByUserId(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletItems = await getItemsByPartitionKeyFromDynamoDB(walletTable, `userId`, userId);
+    const walletItems = await getItemsByPartitionKeyFromDynamoDB(walletTable, `userId`, chatId);
 
     if (walletItems.length === 0) {
         return null;
@@ -117,22 +133,3 @@ export async function checkPartitionValueExistsInDynamoDB(tableName, partitionKe
         throw error;
     }
 }
-
-// TODO: Function for updating the lastActiveAt attribute in the user table
-
-// // Get an item from a DynamoDB table by its key
-// // Not used in this project as of now
-// export async function getSpecificItemFromDynamoDB(tableName, key) {
-//     const params = {
-//         TableName: tableName,
-//         Key: key
-//     };
-
-//     try {
-//         const data = await dynamoDB.get(params).promise();
-//         return data.Item;
-//     } catch (error) {
-//         console.error('Error getting item from DynamoDB:', error);
-//         throw error;
-//     }
-// }

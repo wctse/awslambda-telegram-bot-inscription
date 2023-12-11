@@ -6,7 +6,8 @@ import { handleInscribeStep1, handleInscribeStep2, handleInscribeStep3, handleIn
 import { handleTransfer } from './handlers/transfer.mjs';
 
 import { deleteMessage } from './helpers/bot.mjs';
-import { editItemInDynamoDB, getUserState } from './helpers/dynamoDB.mjs';
+import { editItemInDynamoDB, editUserState, getUserState } from './helpers/dynamoDB.mjs';
+import { isNumeric } from './helpers/commonUtils.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -16,7 +17,7 @@ export async function handler(event, context) {
     if (update.message) {
         const message = update.message;
         const chatId = message.chat.id;
-        const text = message.text
+        const text = message.text;
         const userState = await getUserState(chatId);
 
         await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
@@ -25,7 +26,13 @@ export async function handler(event, context) {
             await handleStart(chatId);
 
         } else if (text.startsWith('data:') && userState === 'INSCRIBE_STEP1') {
-            await handleInscribeStep4(chatId, text);
+            await handleInscribeStep4(chatId, null, text);
+
+        } else if (userState === 'INSCRIBE_STEP2') {
+            await handleInscribeStep3(chatId, text);
+
+        } else if (isNumeric(text) && userState === 'INSCRIBE_STEP3') {
+            await handleInscribeStep4(chatId, text, null);
 
         } else {
             console.info('Unknown message received:', message);
@@ -53,6 +60,9 @@ export async function handler(event, context) {
             case 'main_menu':
                 await handleMainMenu(chatId);
                 break;
+            case 'cancel_main_menu':
+                await handleMainMenu(chatId);
+                break;
             case 'refresh_main_menu':
                 await handleMainMenu(chatId);
                 break;
@@ -75,6 +85,10 @@ export async function handler(event, context) {
 
         if (data.includes('refresh')) {
             await deleteMessage(chatId, messageId);
+        }
+
+        if (data.includes('cancel')) {
+            await editUserState(chatId, 'IDLE');
         }
     }
 
