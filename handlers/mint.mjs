@@ -8,7 +8,7 @@ const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
 
 // Step 1: Ask the user to choose the token standard to use, or have the user directly input the whole inscription data
-export async function handleInscribeStep1(chatId) {
+export async function handleMintStep1(chatId) {
     const publicAddress = await getWalletAddressByUserId(chatId);
     const ethBalance = await getEthBalance(publicAddress);
 
@@ -25,7 +25,7 @@ export async function handleInscribeStep1(chatId) {
 
     const step1Keyboard = {
         inline_keyboard: [[
-            { text: "erc-20 (Ethscriptions)", callback_data: "inscribe_step1_erc20" }
+            { text: "erc-20 (Ethscriptions)", callback_data: "mint_step1_erc20" }
         ],
         [
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
@@ -37,15 +37,15 @@ export async function handleInscribeStep1(chatId) {
     const step1Message = "Please choose the token standard to use, or input the whole inscription data directly.";
 
     await addItemToDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
-    await editUserState(chatId, 'INSCRIBE_STEP1');
+    await editUserState(chatId, 'MINT_STEP1');
     await bot.sendMessage(chatId, step1Message, { reply_markup: step1Keyboard });
 }
 
 // Step 2: Receive the token standard and ask the user to input the token ticker
-export async function handleInscribeStep2(chatId, tokenStandard) {
+export async function handleMintStep2(chatId, tokenStandard) {
     // Write the user input token standard to DynamoDB
     const publicAddress = await getWalletAddressByUserId(chatId);
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { inscribeTokenStandard: tokenStandard});
+    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintTokenStandard: tokenStandard});
     
     // Prompt the user for a token ticker. Add more for future support of other token standards.
     const exampleTokens =
@@ -59,15 +59,15 @@ export async function handleInscribeStep2(chatId, tokenStandard) {
         "\n" +
         "📖 [You can search for existing tokens for both standards on ierc20.com.](https://www.ierc20.com/)";
 
-    await editUserState(chatId, 'INSCRIBE_STEP2');
+    await editUserState(chatId, 'MINT_STEP2');
     await bot.sendMessage(chatId, step2Message, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
 }
 
 // Step 3: Ask the user for the amount to mint
-export async function handleInscribeStep3(chatId, tokenTicker) {
+export async function handleMintStep3(chatId, tokenTicker) {
     // Write the user input token ticker to DynamoDB
     const publicAddress = await getWalletAddressByUserId(chatId);
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { inscribeTokenTicker: tokenTicker});
+    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintTokenTicker: tokenTicker});
 
     const step3Message =
         "✅ You have chosen " + tokenTicker + " as the token ticker.\n" +
@@ -76,12 +76,12 @@ export async function handleInscribeStep3(chatId, tokenTicker) {
         "\n" +
         "📖 [You can search for minting limits for both standards on ierc20.com.](https://www.ierc20.com/)";
 
-    await editUserState(chatId, 'INSCRIBE_STEP3');
+    await editUserState(chatId, 'MINT_STEP3');
     await bot.sendMessage(chatId, step3Message, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
 }
 
 // Step 4: Review and confirm the inscription data.
-export async function handleInscribeStep4(chatId, amount = null, data = null, recall = null) {
+export async function handleMintStep4(chatId, amount = null, data = null, recall = null) {
     const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletData[0].publicAddress;
     const chainName = walletData[0].chainName;
@@ -98,16 +98,16 @@ export async function handleInscribeStep4(chatId, amount = null, data = null, re
     if (amount) {
         // Case where the inscription data is generated from the user input in all previous steps
         const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
-        protocol = processData.inscribeTokenStandard;
-        ticker = processData.inscribeTokenTicker;
+        protocol = processData.mintTokenStandard;
+        ticker = processData.mintTokenTicker;
 
         data = `data:,{"p":"` + protocol + `","op":"mint","tick":"` + ticker + `","amt":"` + amount + `"}`;
         
-        await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { inscribeFullData: data });
+        await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintFullData: data });
 
     } else if (data) {
         // Case where the inscription data is directly provided
-        await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { inscribeFullData: data });
+        await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintFullData: data });
 
         try {
             const jsonPart = data.substring(data.indexOf(',') + 1);
@@ -117,22 +117,22 @@ export async function handleInscribeStep4(chatId, amount = null, data = null, re
             amount = jsonData.amt;
 
         } catch (error) {
-            console.error('Error parsing inscription data in handleInscribeStep4:', error);
+            console.error('Error parsing inscription data in handleMintStep4:', error);
         }
     } else {
-        console.error("No amount or fullData provided in handleInscribeStep4.");
+        console.error("No amount or fullData provided in handleMintStep4.");
     }
 
     if (!protocol || !ticker || !amount) {
         bot.sendMessage(chatId, "⚠️ The information provided is incorrect. Please try again.", { reply_markup: backToMainMenuKeyboard });
-        console.warn("No protocol, ticker or amount provided in handleInscribeStep4.");
+        console.warn("No protocol, ticker or amount provided in handleMintStep4.");
         return;
     }
 
     const currentGasPrice = await getCurrentGasPrice(); // in gwei
     const estimatedGasCost = (1e-9 * currentGasPrice * (21000 + data.length * 16)).toPrecision(4);
 
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { inscribeGasPrice: currentGasPrice });
+    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintGasPrice: currentGasPrice });
 
     const step4Message = 
         "⌛ Please review the inscription information below. \n" +
@@ -150,43 +150,43 @@ export async function handleInscribeStep4(chatId, amount = null, data = null, re
 
     const step4Keyboard = {
         inline_keyboard: [[
-            { text: "✅ Confirm", callback_data: "inscribe_step4_confirm" },
+            { text: "✅ Confirm", callback_data: "mint_step4_confirm" },
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
         ]]
     };
 
-    await editUserState(chatId, 'INSCRIBE_STEP4');
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { inscribeConfirmPromptTime: Date.now() });
+    await editUserState(chatId, 'MINT_STEP4');
+    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintConfirmPromptTime: Date.now() });
     await bot.sendMessage(chatId, step4Message, { reply_markup: step4Keyboard, parse_mode: 'Markdown' });
 }
 
 // Step 5: Send the transaction to the blockchain
 // TODO: Prevent the user from sending the same transaction twice
-export async function handleInscribeStep5(chatId) {
+export async function handleMintStep5(chatId) {
     const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletData[0].publicAddress;
     const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
-    const data = processData.inscribeFullData;
+    const data = processData.mintFullData;
 
     // Check validity of data
     if (!data) {
         bot.sendMessage(chatId, "⚠️ An error has occurred. Please try again.", { reply_markup: backToMainMenuKeyboard });
-        console.error("No inscription data provided in handleInscribeStep5.");
+        console.error("No inscription data provided in handleMintStep5.");
         return;
     }
     
     // Check for time elapsed, if more than 1 minute, go back to step 4 and prompt the user again to confirm
-    if (Date.now() - processData.inscribeConfirmPromptTime > 60000) {
-        await handleInscribeStep4(chatId, null, data, 'timeout');
+    if (Date.now() - processData.mintConfirmPromptTime > 60000) {
+        await handleMintStep4(chatId, null, data, 'timeout');
         return;
     }
 
     // Check for current gas prices. If the gas price is at least 10% more expensive, go back to step 4 and prompt the user again to confirm
     const currentGasPrice = await getCurrentGasPrice();
-    const previousGasPrice = processData.inscribeGasPrice;
+    const previousGasPrice = processData.mintGasPrice;
 
     if (currentGasPrice > previousGasPrice * 1.1) {
-        await handleInscribeStep4(chatId, null, data, 'expensive_gas');
+        await handleMintStep4(chatId, null, data, 'expensive_gas');
         return;
     }
 
@@ -204,7 +204,7 @@ export async function handleInscribeStep5(chatId) {
     const protocol = jsonData.p;
     const ticker = jsonData.tick;
     const amount = jsonData.amt;
-    await addItemToDynamoDB(transactionTable, { userId: chatId, publicAddress: publicAddress, transactionHash: txHash, txType: 'INSCRIBE', inscribeProtocol: protocol, inscribeTicker: ticker, inscribeAmount: amount });
+    await addItemToDynamoDB(transactionTable, { userId: chatId, publicAddress: publicAddress, transactionHash: txHash, txType: 'MINT', mintProtocol: protocol, mintTicker: ticker, mintAmount: amount });
 
     const url = 
         config.TESTNET ? "https://sepolia.etherscan.io/tx/" + txHash :

@@ -13,7 +13,7 @@ export async function handleMainMenu(chatId) {
     const mainMenuKeyboard = {
         inline_keyboard: [
             [
-                { text: "✍️ Inscribe", callback_data: "inscribe" },
+                { text: "✍️ Mint", callback_data: "mint" },
                 { text: "💸 Transfer", callback_data: "transfer" },
                 { text: "💰 View Wallet", callback_data: "view_wallet" }
             ],

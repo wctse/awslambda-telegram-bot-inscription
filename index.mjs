@@ -2,7 +2,7 @@ import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
 import { handleMainMenu } from './handlers/mainMenu.mjs';
 import { handleViewWallet } from './handlers/viewWallet.mjs';
-import { handleInscribeStep1, handleInscribeStep2, handleInscribeStep3, handleInscribeStep4, handleInscribeStep5 } from './handlers/inscribe.mjs';
+import { handleMintStep1, handleMintStep2, handleMintStep3, handleMintStep4, handleMintStep5 } from './handlers/mint.mjs';
 import { handleTransfer } from './handlers/transfer.mjs';
 
 import { deleteMessage } from './helpers/bot.mjs';
@@ -25,14 +25,14 @@ export async function handler(event, context) {
         if (text === '/start') {
             await handleStart(chatId);
 
-        } else if (text.startsWith('data:') && userState === 'INSCRIBE_STEP1') {
-            await handleInscribeStep4(chatId, null, text);
+        } else if (text.startsWith('data:') && userState === 'MINT_STEP1') {
+            await handleMintStep4(chatId, null, text);
 
-        } else if (userState === 'INSCRIBE_STEP2') {
-            await handleInscribeStep3(chatId, text);
+        } else if (userState === 'MINT_STEP2') {
+            await handleMintStep3(chatId, text);
 
-        } else if (isNumeric(text) && userState === 'INSCRIBE_STEP3') {
-            await handleInscribeStep4(chatId, text, null);
+        } else if (isNumeric(text) && userState === 'MINT_STEP3') {
+            await handleMintStep4(chatId, text, null);
 
         } else {
             console.info('Unknown message received:', message);
@@ -66,14 +66,14 @@ export async function handler(event, context) {
             case 'refresh_main_menu':
                 await handleMainMenu(chatId);
                 break;
-            case 'inscribe':
-                await handleInscribeStep1(chatId);
+            case 'mint':
+                await handleMintStep1(chatId);
                 break;
-            case 'inscribe_step1_erc20':
-                await handleInscribeStep2(chatId, 'erc-20');
+            case 'mint_step1_erc20':
+                await handleMintStep2(chatId, 'erc-20');
                 break;
-            case 'inscribe_step4_confirm':
-                await handleInscribeStep5(chatId);
+            case 'mint_step4_confirm':
+                await handleMintStep5(chatId);
                 break;
             case 'transfer':
                 await handleTransfer(chatId);
