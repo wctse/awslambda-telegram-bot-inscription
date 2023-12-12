@@ -1,6 +1,10 @@
 import { ethers, JsonRpcProvider } from 'ethers';
+import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
-const provider = new JsonRpcProvider(`https://ethereum.publicnode.com`); // TODO: Add fallback providers
+// TODO: Add fallback providers
+const provider = 
+    config.TESTNET ? new JsonRpcProvider(`https://ethereum-sepolia.publicnode.com`) :
+    new JsonRpcProvider(`https://ethereum.publicnode.com`);
 
 export async function getEthBalance(publicAddress) {
     try {
@@ -18,6 +22,26 @@ export async function getCurrentGasPrice() {
         return ethers.formatUnits(feeData.gasPrice, 'gwei'); 
     } catch (error) {
         console.error('Error getting current gas price:', error);
+        throw error;
+    }
+}
+
+export async function sendTransaction(privateKey, data) {
+    const wallet = new ethers.Wallet(privateKey, provider);
+
+    const transaction = {
+        to: wallet.address,
+        value: ethers.parseEther('0.0'),
+        data: ethers.hexlify(ethers.toUtf8Bytes(data))
+    };
+
+    try {
+        const txResponse = await wallet.sendTransaction(transaction);
+        console.info('Transaction sent:', txResponse);
+        return txResponse;
+
+    } catch (error) {
+        console.error('Error sending transaction:', error);
         throw error;
     }
 }

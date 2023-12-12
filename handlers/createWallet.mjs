@@ -33,7 +33,7 @@ export async function handleCreateWallet(chatId) {
     const encryptedPrivateKey = await encrypt(privateKey);
 
     // DynamoDB wallet data table item
-    const newUserItem = {
+    const newWalletItem = {
         userId: chatId, // Partition key; For Telegram bots, chatId == userId
         publicAddress: publicAddress, // Sort key for flexibility to supporting multiple wallets per user in the future
         chainName: "Ethereum", // TODO: Make this configurable when adding support for other blockchains
@@ -44,7 +44,7 @@ export async function handleCreateWallet(chatId) {
 
     // Add the user's wallet to DynamoDB
     console.info("Adding new user to DynamoDB:", chatId, publicAddress);
-    await addItemToDynamoDB(walletTable, newUserItem);
+    await addItemToDynamoDB(walletTable, newWalletItem);
 
     // Private key message
     const privateKeyMessage = 

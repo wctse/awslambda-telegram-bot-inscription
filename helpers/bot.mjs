@@ -9,6 +9,12 @@ export const cancelMainMenuKeyboard = {
     ]]
 };
 
+export const backToMainMenuKeyboard = {
+    inline_keyboard: [[
+        { text: "️↩️ Back to Main Menu", callback_data: "main_menu" }
+    ]]
+};
+
 export async function deleteMessage(chatId, messageId) {
     try {
         await bot.deleteMessage(chatId, messageId);

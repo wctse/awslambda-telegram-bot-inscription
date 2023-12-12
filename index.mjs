@@ -72,8 +72,8 @@ export async function handler(event, context) {
             case 'inscribe_step1_erc20':
                 await handleInscribeStep2(chatId, 'erc-20');
                 break;
-            case 'inscribe_step1_ierc20':
-                await handleInscribeStep2(chatId, 'ierc-20');
+            case 'inscribe_step4_confirm':
+                await handleInscribeStep5(chatId);
                 break;
             case 'transfer':
                 await handleTransfer(chatId);
