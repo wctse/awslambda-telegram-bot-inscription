@@ -123,6 +123,12 @@ export async function handleInscribeStep4(chatId, amount = null, data = null, re
         console.error("No amount or fullData provided in handleInscribeStep4.");
     }
 
+    if (!protocol || !ticker || !amount) {
+        bot.sendMessage(chatId, "⚠️ The information provided is incorrect. Please try again.", { reply_markup: backToMainMenuKeyboard });
+        console.warn("No protocol, ticker or amount provided in handleInscribeStep4.");
+        return;
+    }
+
     const currentGasPrice = await getCurrentGasPrice(); // in gwei
     const estimatedGasCost = (1e-9 * currentGasPrice * (21000 + data.length * 16)).toPrecision(4);
 
