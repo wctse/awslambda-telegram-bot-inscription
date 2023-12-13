@@ -69,8 +69,8 @@ export async function handler(event, context) {
             case 'mint':
                 await handleMintStep1(chatId);
                 break;
-            case 'mint_step1_erc20':
-                await handleMintStep2(chatId, 'erc-20');
+            case 'mint_step1_ierc20':
+                await handleMintStep2(chatId, 'ierc-20');
                 break;
             case 'mint_step4_confirm':
                 await handleMintStep5(chatId);

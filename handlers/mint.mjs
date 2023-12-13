@@ -1,6 +1,6 @@
 import { bot, cancelMainMenuKeyboard, backToMainMenuKeyboard } from '../helpers/bot.mjs';
 import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB  } from '../helpers/dynamoDB.mjs';
-import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
+import { getCurrentGasPrice, getEthBalance, sendTransaction, addNonce } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
@@ -8,6 +8,7 @@ const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
 
 // Step 1: Ask the user to choose the token standard to use, or have the user directly input the whole inscription data
+// TODO: Check why sometimes the bot would send the same message twice
 export async function handleMintStep1(chatId) {
     const publicAddress = await getWalletAddressByUserId(chatId);
     const ethBalance = await getEthBalance(publicAddress);
@@ -25,7 +26,7 @@ export async function handleMintStep1(chatId) {
 
     const step1Keyboard = {
         inline_keyboard: [[
-            { text: "erc-20 (Ethscriptions)", callback_data: "mint_step1_erc20" }
+            { text: "ierc-20", callback_data: "mint_step1_ierc20" }
         ],
         [
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
@@ -50,6 +51,7 @@ export async function handleMintStep2(chatId, tokenStandard) {
     // Prompt the user for a token ticker. Add more for future support of other token standards.
     const exampleTokens =
         tokenStandard === "erc-20" ? "eths, gwei" :
+        tokenStandard === "ierc-20" ? "ethi, ierc" :
         "";
 
     const step2Message = 
@@ -81,6 +83,7 @@ export async function handleMintStep3(chatId, tokenTicker) {
 }
 
 // Step 4: Review and confirm the inscription data.
+// TODO: Check why confirmation messages, if not responded to, would repeat itself every minute
 export async function handleMintStep4(chatId, amount = null, data = null, recall = null) {
     const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletData[0].publicAddress;
@@ -101,7 +104,7 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
         protocol = processData.mintTokenStandard;
         ticker = processData.mintTokenTicker;
 
-        data = `data:,{"p":"` + protocol + `","op":"mint","tick":"` + ticker + `","amt":"` + amount + `"}`;
+        data = `data:application/json,{"p":"` + protocol + `","op":"mint","tick":"` + ticker + `","amt":"` + amount + `"}`;
         
         await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintFullData: data });
 
@@ -166,7 +169,7 @@ export async function handleMintStep5(chatId) {
     const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletData[0].publicAddress;
     const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
-    const data = processData.mintFullData;
+    let data = processData.mintFullData;
 
     // Check validity of data
     if (!data) {
@@ -194,6 +197,7 @@ export async function handleMintStep5(chatId) {
     const privateKey = await decrypt(encryptedPrivateKey);
 
     // Send the transaction to the blockchain
+    data = await addNonce(data);
     const txResponse = await sendTransaction(privateKey, data);
     const txHash = txResponse.hash;
 
@@ -204,10 +208,20 @@ export async function handleMintStep5(chatId) {
     const protocol = jsonData.p;
     const ticker = jsonData.tick;
     const amount = jsonData.amt;
-    await addItemToDynamoDB(transactionTable, { userId: chatId, publicAddress: publicAddress, transactionHash: txHash, txType: 'MINT', mintProtocol: protocol, mintTicker: ticker, mintAmount: amount });
 
+    await addItemToDynamoDB(transactionTable, { 
+        userId: chatId,
+        publicAddress: publicAddress,
+        transactionHash: txHash,
+        txType: 'MINT',
+        mintProtocol: protocol,
+        mintTicker: ticker,
+        mintAmount: amount });
+
+    // Send confirmation message to the user
+    // TODO: Remove in production
     const url = 
-        config.TESTNET ? "https://sepolia.etherscan.io/tx/" + txHash :
+        config.TESTNET ? "https://goerli.etherscan.io/tx/" + txHash :
         "https://etherscan.io/tx/" + txHash;
 
     const transactionSentMessage = 
