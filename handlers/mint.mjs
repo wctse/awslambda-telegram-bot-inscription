@@ -198,7 +198,8 @@ export async function handleMintStep5(chatId) {
 
     // Send the transaction to the blockchain
     data = await addNonce(data);
-    const txResponse = await sendTransaction(privateKey, data);
+    // TODO: Implement logic to change the 'to' address to non-zero for other token standards
+    const txResponse = await sendTransaction(privateKey, data, 'zero');
     const txHash = txResponse.hash;
 
     // Add the transaction record to the database
@@ -219,7 +220,6 @@ export async function handleMintStep5(chatId) {
         mintAmount: amount });
 
     // Send confirmation message to the user
-    // TODO: Remove in production
     const url = 
         config.TESTNET ? "https://goerli.etherscan.io/tx/" + txHash :
         "https://etherscan.io/tx/" + txHash;

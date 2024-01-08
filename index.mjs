@@ -1,5 +1,6 @@
 import { handleStart } from './handlers/start.mjs';
 import { handleCreateWallet } from './handlers/createWallet.mjs';
+import { handleImportWalletStep1, handleImportWalletStep2 } from './handlers/importWallet.mjs';
 import { handleMainMenu } from './handlers/mainMenu.mjs';
 import { handleViewWallet } from './handlers/viewWallet.mjs';
 import { handleMintStep1, handleMintStep2, handleMintStep3, handleMintStep4, handleMintStep5 } from './handlers/mint.mjs';
@@ -34,9 +35,12 @@ export async function handler(event, context) {
         } else if (isNumeric(text) && userState === 'MINT_STEP3') {
             await handleMintStep4(chatId, text, null);
 
-        } else {
-            console.info('Unknown message received:', message);
+        } else if (userState === 'IMPORT_WALLET_STEP1') {
+            await handleImportWalletStep2(chatId, text);
+        }
 
+        else {
+            console.info('Unknown message received:', message);
         }
         
     } else if (update.callback_query) {
@@ -48,8 +52,14 @@ export async function handler(event, context) {
         await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
 
         switch (data) {
+            case 'start':
+                await handleStart(chatId);
+                break;
             case 'create_wallet':
                 await handleCreateWallet(chatId);
+                break;
+            case 'import_wallet':
+                await handleImportWalletStep1(chatId);
                 break;
             case 'view_wallet':
                 await handleViewWallet(chatId);
