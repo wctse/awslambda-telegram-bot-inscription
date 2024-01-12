@@ -59,7 +59,7 @@ export async function handleMintStep2(chatId, tokenStandard) {
         "\n" +
         "👇 Please input the token ticker (e.g. " + exampleTokens + ")\n" +
         "\n" +
-        "📖 [You can search for existing tokens for both standards on ierc20.com.](https://www.ierc20.com/)";
+        "📖 [You can search for existing tokens on ierc20.com.](https://www.ierc20.com/)";
 
     await editUserState(chatId, 'MINT_STEP2');
     await bot.sendMessage(chatId, step2Message, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
@@ -76,7 +76,7 @@ export async function handleMintStep3(chatId, tokenTicker) {
         "\n" +
         "👇 Please input the amount to mint. Do not exceed the minting limit.\n" +
         "\n" +
-        "📖 [You can search for minting limits for both standards on ierc20.com.](https://www.ierc20.com/)";
+        "📖 [Check the " + tokenTicker + " minting limit on ierc20.com.](https://www.ierc20.com/tick/" + tokenTicker + ")";
 
     await editUserState(chatId, 'MINT_STEP3');
     await bot.sendMessage(chatId, step3Message, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
