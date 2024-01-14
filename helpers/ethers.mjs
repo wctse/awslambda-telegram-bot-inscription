@@ -1,4 +1,4 @@
-import { ethers, JsonRpcProvider } from 'ethers';
+import { ethers, isHexString, JsonRpcProvider } from 'ethers';
 import { ZERO_ADDRESS } from '../constants.mjs';
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
@@ -8,6 +8,17 @@ const testnet = config.TESTNET
 const provider = 
     testnet ? new JsonRpcProvider(`https://ethereum-goerli.publicnode.com`) :
     new JsonRpcProvider(`https://ethereum.publicnode.com`);
+
+export async function getTransactionInscription(transactionHash) {
+    if (!isHexString(transactionHash, 32)) {
+        throw new Error("Invalid transaction hash");
+    }
+
+    const transaction = await provider.getTransaction(transactionHash);
+    const data = transaction.data;
+    const text = ethers.utils.toUtf8String(data);
+    return text;
+}
 
 export async function getEthBalance(publicAddress) {
     try {
