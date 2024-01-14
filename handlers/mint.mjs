@@ -200,6 +200,7 @@ export async function handleMintStep5(chatId) {
     data = await addNonce(data);
     // TODO: Implement logic to change the 'to' address to non-zero for other token standards
     const txResponse = await sendTransaction(privateKey, data, 'zero');
+    const txTimestamp = Date.now();
     const txHash = txResponse.hash;
 
     // Add the transaction record to the database
@@ -214,7 +215,8 @@ export async function handleMintStep5(chatId) {
         userId: chatId,
         publicAddress: publicAddress,
         transactionHash: txHash,
-        txType: 'MINT',
+        txType: 'mint',
+        timestamp: txTimestamp,
         mintProtocol: protocol,
         mintTicker: ticker,
         mintAmount: amount });
