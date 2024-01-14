@@ -1,7 +1,9 @@
 import { bot } from '../helpers/bot.mjs';
+import { getEthPrice } from '../helpers/coingecko.mjs';
 import { getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
 import { getEthBalance } from '../helpers/ethers.mjs';
 import { calculateIerc20Balance } from '../helpers/ierc20.mjs';
+import { round } from '../helpers/commonUtils.mjs';
 
 export async function handleViewWallet(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;
@@ -10,7 +12,8 @@ export async function handleViewWallet(chatId) {
     const userItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId); // TODO: When multiple wallets is implemented, this should be changed to get all wallets for a user
     const publicAddress = userItem[0].publicAddress;
     const chainName = userItem[0].chainName;
-    const ethBalance = await getEthBalance(publicAddress);
+    const ethBalance = round(await getEthBalance(publicAddress), 6);
+    const ethBalanceUsd = round(ethBalance * await getEthPrice(), 2);
     
     const transactions = await getItemsByPartitionKeyFromDynamoDB(transactionTable, "publicAddress", publicAddress);
     const ierc20Balances = await calculateIerc20Balance(transactions);
@@ -20,7 +23,7 @@ export async function handleViewWallet(chatId) {
         `\n` +
         `Chain: ${chainName}\n` +
         `Address: \`${publicAddress}\`\n` +
-        `ETH Balance: ${ethBalance} ETH\n` +
+        `ETH Balance: ${ethBalance} ETH (\$${ethBalanceUsd})\n` +
         `\n` +
         `*ierc-20 Balances*\n`;
 

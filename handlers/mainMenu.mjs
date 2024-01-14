@@ -1,11 +1,12 @@
 import { bot } from '../helpers/bot.mjs';
 import { getCurrentGasPrice } from '../helpers/ethers.mjs';
+import { round } from '../helpers/commonUtils.mjs';
 
 export async function handleMainMenu(chatId) {
-    const currentGasPrice = await getCurrentGasPrice();
+    const currentGasPrice = round(await getCurrentGasPrice(), 4);
 
     const mainMenuMessage = 
-    `Welcome to the main menu! \n` + 
+    `Welcome to 1bot, the ultimate bot for inscriptions! \n` + 
     `Current gas price: ${currentGasPrice} Gwei\n` +
     `\n` +
     `Choose an option:`;

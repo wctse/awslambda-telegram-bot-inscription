@@ -3,6 +3,8 @@ import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getIt
 import { getCurrentGasPrice, getEthBalance, sendTransaction, addNonce } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
+import { round } from '../helpers/commonUtils.mjs';
+import { getEthPrice } from '../helpers/coingecko.mjs';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
@@ -132,8 +134,9 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
         return;
     }
 
-    const currentGasPrice = await getCurrentGasPrice(); // in gwei
-    const estimatedGasCost = (1e-9 * currentGasPrice * (21000 + data.length * 16)).toPrecision(4);
+    const currentGasPrice = round(await getCurrentGasPrice(), 4)
+    const estimatedGasCost = round(1e-9 * currentGasPrice * (21000 + data.length * 16), 8); // in ETH
+    const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
     await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintGasPrice: currentGasPrice });
 
@@ -146,8 +149,8 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
         "Ticker: " + ticker + "\n" +
         "Amount: " + amount + "\n" +
         "\n" +
-        "Current Gas Price: " + currentGasPrice + "\n" +
-        "Estimated Cost: " + estimatedGasCost + " ETH\n" +
+        "Current Gas Price: " + currentGasPrice + "Gwei\n" +
+        "Estimated Cost: " + estimatedGasCost + " ETH (\$" + estimatedGasCostUsd + ")\n" +
         "\n" +
         "☝️ Please confirm the information in 1 minute:";
 
