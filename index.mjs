@@ -5,6 +5,7 @@ import { handleMainMenu } from './handlers/mainMenu.mjs';
 import { handleViewWallet } from './handlers/viewWallet.mjs';
 import { handleMintStep1, handleMintStep2, handleMintStep3, handleMintStep4, handleMintStep5 } from './handlers/mint.mjs';
 import { handleTransfer } from './handlers/transfer.mjs';
+import { handleSettings, handleSettingsGas } from './handlers/settings.mjs';
 
 import { deleteMessage } from './helpers/bot.mjs';
 import { editItemInDynamoDB, editUserState, getUserState } from './helpers/dynamoDB.mjs';
@@ -21,7 +22,7 @@ export async function handler(event, context) {
         const text = message.text;
         const userState = await getUserState(chatId);
 
-        await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
+        await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true);
 
         if (text === '/start') {
             await handleStart(chatId);
@@ -87,6 +88,21 @@ export async function handler(event, context) {
                 break;
             case 'transfer':
                 await handleTransfer(chatId);
+                break;
+            case 'settings':
+                await handleSettings(chatId);
+                break;
+            case 'settings_gas_auto':
+                await handleSettingsGas(chatId, messageId, 'auto');
+                break;
+            case 'settings_gas_low':
+                await handleSettingsGas(chatId, messageId, 'low');
+                break;
+            case 'settings_gas_medium':
+                await handleSettingsGas(chatId, messageId, 'medium');
+                break;
+            case 'settings_gas_high':
+                await handleSettingsGas(chatId, messageId, 'high');
                 break;
             default:
                 console.info('Unknown callback query received:', callbackQuery);

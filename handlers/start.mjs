@@ -6,18 +6,21 @@ export async function handleStart(chatId) {
     const userTable = process.env.USER_TABLE_NAME;
     const userExists = await checkPartitionValueExistsInDynamoDB(userTable, `userId`, chatId );
 
-    // if (userExists) {
-    //     await handleMainMenu(chatId);
-    //     return;
-    // } else {
-    //     const userItem = {
-    //         userId: chatId,
-    //         lastActiveAt: Date.now(),
-    //         userState: "IDLE" // used to track flows that requires back-and-forth messaging with the user
-    //     };
+    if (userExists) {
+        await handleMainMenu(chatId);
+        return;
+    } else {
+        const userItem = {
+            userId: chatId,
+            lastActiveAt: Date.now(),
+            userState: "IDLE", // used to track flows that requires back-and-forth messaging with the user
+            userSettings: {
+                gas: "auto",
+            }
+        };
     
-    //     await addItemToDynamoDB(userTable, userItem);
-    // }
+        await addItemToDynamoDB(userTable, userItem);
+    }
     
     const keyboard = {
         inline_keyboard: [[
@@ -26,5 +29,5 @@ export async function handleStart(chatId) {
         ]]
     };
     
-    await bot.sendMessage(chatId, "Welcome to 1Bot, the ultimate bot for inscriptions. Create your wallet seamless with one click:", { reply_markup: keyboard });
+    await bot.sendMessage(chatId, "Welcome to 1Bot, the ultimate bot for inscriptions. Create your wallet seamlessly with one click:", { reply_markup: keyboard });
 }

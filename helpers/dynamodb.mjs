@@ -18,7 +18,15 @@ export async function addItemToDynamoDB(tableName, item) {
 }
 
 // Edit specified attributes of an item in a DynamoDB table
-export async function editItemInDynamoDB(tableName, key, updates) {
+export async function editItemInDynamoDB(tableName, key, updates, checkExists = false) {
+    if (checkExists) {
+        const item = await getItemFromDynamoDB(tableName, key);
+        if (!item) {
+            console.warn(`Function editItemInDynamoDB: Item with key ${JSON.stringify(key)} does not exist in table ${tableName}`);
+            return;
+        }
+    }
+
     const updateExpression = "set " + Object.keys(updates).map((key) => `${key} = :${key}`).join(', ');
     const expressionAttributeValues = Object.fromEntries(
         Object.entries(updates).map(([key, value]) => [`:${key}`, value])
