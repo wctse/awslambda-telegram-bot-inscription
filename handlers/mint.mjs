@@ -1,4 +1,4 @@
-import { bot, cancelMainMenuKeyboard, backToMainMenuKeyboard } from '../helpers/bot.mjs';
+import { bot, cancelMainMenuKeyboard } from '../helpers/bot.mjs';
 import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB  } from '../helpers/dynamoDB.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction, addNonce } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
@@ -145,10 +145,10 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
         "⌛ Please review the inscription information below. \n" +
         "\n" +
         "Wallet: `" + publicAddress + "`\n" +
-        "Chain: " + chainName + "\n" +
-        "Protocol: " + protocol + "\n" +
-        "Ticker: " + ticker + "\n" +
-        "Amount: " + amount + "\n" +
+        "Chain: `" + chainName + "`\n" +
+        "Protocol: `" + protocol + "`\n" +
+        "Ticker: `" + ticker + "`\n" +
+        "Amount: `" + amount + "`\n" +
         "\n" +
         "Current Gas Price: " + currentGasPrice + " Gwei\n" +
         "Estimated Cost: " + estimatedGasCost + " ETH (\$" + estimatedGasCostUsd + ")";
@@ -248,6 +248,26 @@ export async function handleMintStep5(chatId) {
         "\n" +
         "⏳ Please wait for the transaction to be confirmed. This may take a few minutes.";
 
-    await bot.sendMessage(chatId, transactionSentMessage, { parse_mode: 'Markdown', reply_markup: backToMainMenuKeyboard });
+    const transactionSentKeyboard = {
+        inline_keyboard: [[
+            { text: "🔁 Repeat", callback_data: "mint_repeat" },
+            { text: "🧘 Start over", callback_data: "mint" },
+        ],
+        [
+            { text: "💰 View wallet", callback_data: "view_wallet" },
+            { text: "️↩️ Main menu", callback_data: "main_menu" },
+        ]]
+    };
+
+    await bot.sendMessage(chatId, transactionSentMessage, { parse_mode: 'Markdown', reply_markup: transactionSentKeyboard });
     await editUserState(chatId, 'IDLE');
+}
+
+export async function handleMintRepeat(chatId) {
+    const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
+    const publicAddress = walletData[0].publicAddress;
+    const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
+    const data = processData.mintFullData;
+
+    await handleMintStep4(chatId, null, data);
 }

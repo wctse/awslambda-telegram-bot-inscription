@@ -3,7 +3,7 @@ import { handleCreateWallet } from './handlers/createWallet.mjs';
 import { handleImportWalletStep1, handleImportWalletStep2 } from './handlers/importWallet.mjs';
 import { handleMainMenu } from './handlers/mainMenu.mjs';
 import { handleViewWallet } from './handlers/viewWallet.mjs';
-import { handleMintStep1, handleMintStep2, handleMintStep3, handleMintStep4, handleMintStep5 } from './handlers/mint.mjs';
+import { handleMintRepeat, handleMintStep1, handleMintStep2, handleMintStep3, handleMintStep4, handleMintStep5 } from './handlers/mint.mjs';
 import { handleTransfer } from './handlers/transfer.mjs';
 import { handleSettings, handleSettingsGas } from './handlers/settings.mjs';
 
@@ -85,6 +85,9 @@ export async function handler(event, context) {
                 break;
             case 'mint_step4_confirm':
                 await handleMintStep5(chatId);
+                break;
+            case 'mint_repeat':
+                await handleMintRepeat(chatId);
                 break;
             case 'transfer':
                 await handleTransfer(chatId);

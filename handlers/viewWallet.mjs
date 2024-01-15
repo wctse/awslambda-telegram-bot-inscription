@@ -21,14 +21,14 @@ export async function handleViewWallet(chatId) {
     let viewWalletMessage = 
         `Wallet information:\n` +
         `\n` +
-        `Chain: ${chainName}\n` +
+        `Chain: \`${chainName}\`\n` +
         `Address: \`${publicAddress}\`\n` +
         `ETH Balance: ${ethBalance} ETH (\$${ethBalanceUsd})\n` +
         `\n` +
         `*ierc-20 Balances*\n`;
 
     for (const[ierc20Ticker, ierc20Balance] of Object.entries(ierc20Balances)) {
-        viewWalletMessage += `${ierc20Ticker}: ${ierc20Balance}\n`;
+        viewWalletMessage += `${ierc20Ticker}: \`${ierc20Balance}\`\n`;
     }
 
     viewWalletMessage +=
