@@ -6,8 +6,15 @@ const testnet = config.TESTNET
 
 // TODO: Add fallback providers
 const provider = 
-    testnet ? new JsonRpcProvider(`https://ethereum-goerli.publicnode.com`) :
+    testnet ? new JsonRpcProvider(`https://ethereum-sepolia.publicnode.com`) :
     new JsonRpcProvider(`https://ethereum.publicnode.com`);
+
+// TODO: Improve auto gas strategy
+export const gasMapping = {
+    'high': '1',
+    'medium': '0.1',
+    'low': '0',
+};
 
 export async function getTransactionInscription(transactionHash) {
     if (!isHexString(transactionHash, 32)) {
@@ -40,7 +47,7 @@ export async function getCurrentGasPrice() {
     }
 }
 
-export async function sendTransaction(privateKey, data, to = null) {
+export async function sendTransaction(privateKey, data, to = null, gasSetting = 'auto') {
     const wallet = new ethers.Wallet(privateKey, provider);
     if (!to) {
         to = wallet.address;
@@ -48,10 +55,24 @@ export async function sendTransaction(privateKey, data, to = null) {
         to = ZERO_ADDRESS;
     }
 
-    const transaction = {
+    // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified, when gasSetting is not 'auto'
+    const feeData = await provider.getFeeData();
+    console.debug(feeData)
+
+    const transaction = gasSetting === 'auto' ? 
+    {
         to: to,
         value: ethers.parseEther('0.0'),
         data: ethers.hexlify(ethers.toUtf8Bytes(data)),
+        maxFeePerGas: feeData.maxFeePerGas,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    } :
+    {   
+        to: to,
+        value: ethers.parseEther('0.0'),
+        data: ethers.hexlify(ethers.toUtf8Bytes(data)),
+        maxFeePerGas: feeData.maxFeePerGas,
+        maxPriorityFeePerGas: ethers.parseUnits(gasMapping[gasSetting], 'gwei'),
     };
     
     try {

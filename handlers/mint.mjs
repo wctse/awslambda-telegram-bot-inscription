@@ -8,6 +8,7 @@ import { getEthPrice } from '../helpers/coingecko.mjs';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
+const userTable = process.env.USER_TABLE_NAME;
 
 // Step 1: Ask the user to choose the token standard to use, or have the user directly input the whole inscription data
 // TODO: Check why sometimes the bot would send the same message twice
@@ -134,13 +135,13 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
         return;
     }
 
-    const currentGasPrice = round(await getCurrentGasPrice(), 4)
-    const estimatedGasCost = round(1e-9 * currentGasPrice * (21000 + data.length * 16), 8); // in ETH
+    const currentGasPrice = await getCurrentGasPrice()
+    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
     const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
     await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintGasPrice: currentGasPrice });
 
-    const step4Message = 
+    let step4Message = 
         "⌛ Please review the inscription information below. \n" +
         "\n" +
         "Wallet: `" + publicAddress + "`\n" +
@@ -149,9 +150,17 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
         "Ticker: " + ticker + "\n" +
         "Amount: " + amount + "\n" +
         "\n" +
-        "Current Gas Price: " + currentGasPrice + "Gwei\n" +
-        "Estimated Cost: " + estimatedGasCost + " ETH (\$" + estimatedGasCostUsd + ")\n" +
-        "\n" +
+        "Current Gas Price: " + currentGasPrice + " Gwei\n" +
+        "Estimated Cost: " + estimatedGasCost + " ETH (\$" + estimatedGasCostUsd + ")";
+
+    const ethBalance = await getEthBalance(publicAddress);
+    if (ethBalance < estimatedGasCost) {
+        step4Message += "\n\n" +    
+            "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
+            "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
+    }
+
+    step4Message += "\n\n" +
         "☝️ Please confirm the information in 1 minute:";
 
     const step4Keyboard = {
@@ -198,11 +207,14 @@ export async function handleMintStep5(chatId) {
 
     const encryptedPrivateKey = walletData[0].encryptedPrivateKey;
     const privateKey = await decrypt(encryptedPrivateKey);
+    const gasSetting = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings.gas;
 
     // Send the transaction to the blockchain
     data = await addNonce(data);
+
     // TODO: Implement logic to change the 'to' address to non-zero for other token standards
-    const txResponse = await sendTransaction(privateKey, data, 'zero');
+    const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
+
     const txTimestamp = Date.now();
     const txHash = txResponse.hash;
 
@@ -226,7 +238,7 @@ export async function handleMintStep5(chatId) {
 
     // Send confirmation message to the user
     const url = 
-        config.TESTNET ? "https://goerli.etherscan.io/tx/" + txHash :
+        config.TESTNET ? "https://sepolia.etherscan.io/tx/" + txHash :
         "https://etherscan.io/tx/" + txHash;
 
     const transactionSentMessage = 
