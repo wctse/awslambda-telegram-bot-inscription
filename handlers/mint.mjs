@@ -40,7 +40,6 @@ export async function handleMintStep1(chatId) {
     // If the user input the inscription data directly, the bot will jump to the review step
     const step1Message = "Please choose the token standard to use, or input the whole inscription data directly.";
 
-    await addItemToDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
     await editUserState(chatId, 'MINT_STEP1');
     await bot.sendMessage(chatId, step1Message, { reply_markup: step1Keyboard });
 }
@@ -49,7 +48,7 @@ export async function handleMintStep1(chatId) {
 export async function handleMintStep2(chatId, tokenStandard) {
     // Write the user input token standard to DynamoDB
     const publicAddress = await getWalletAddressByUserId(chatId);
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintTokenStandard: tokenStandard});
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTokenStandard: tokenStandard});
     
     // Prompt the user for a token ticker. Add more for future support of other token standards.
     const exampleTokens =
@@ -72,7 +71,7 @@ export async function handleMintStep2(chatId, tokenStandard) {
 export async function handleMintStep3(chatId, tokenTicker) {
     // Write the user input token ticker to DynamoDB
     const publicAddress = await getWalletAddressByUserId(chatId);
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintTokenTicker: tokenTicker});
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTokenTicker: tokenTicker});
 
     const step3Message =
         "✅ You have chosen " + tokenTicker + " as the token ticker.\n" +
@@ -103,17 +102,17 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
     let protocol, ticker;
     if (amount) {
         // Case where the inscription data is generated from the user input in all previous steps
-        const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
+        const processData = await getItemFromDynamoDB(processTable, { userId: chatId });
         protocol = processData.mintTokenStandard;
         ticker = processData.mintTokenTicker;
 
         data = `data:application/json,{"p":"` + protocol + `","op":"mint","tick":"` + ticker + `","amt":"` + amount + `"}`;
         
-        await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintFullData: data });
+        await editItemInDynamoDB(processTable, { userId: chatId }, { mintFullData: data });
 
     } else if (data) {
         // Case where the inscription data is directly provided
-        await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintFullData: data });
+        await editItemInDynamoDB(processTable, { userId: chatId }, { mintFullData: data });
 
         try {
             const jsonPart = data.substring(data.indexOf(',') + 1);
@@ -139,7 +138,7 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
     const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintGasPrice: currentGasPrice });
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintGasPrice: currentGasPrice });
 
     let step4Message = 
         "⌛ Please review the inscription information below. \n" +
@@ -171,7 +170,7 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
     };
 
     await editUserState(chatId, 'MINT_STEP4');
-    await editItemInDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress }, { mintConfirmPromptTime: Date.now() });
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintConfirmPromptTime: Date.now() });
     await bot.sendMessage(chatId, step4Message, { reply_markup: step4Keyboard, parse_mode: 'Markdown' });
 }
 
@@ -180,7 +179,7 @@ export async function handleMintStep4(chatId, amount = null, data = null, recall
 export async function handleMintStep5(chatId) {
     const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletData[0].publicAddress;
-    const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
+    const processData = await getItemFromDynamoDB(processTable, { userId: chatId });
     let data = processData.mintFullData;
 
     // Check validity of data
@@ -266,7 +265,7 @@ export async function handleMintStep5(chatId) {
 export async function handleMintRepeat(chatId) {
     const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletData[0].publicAddress;
-    const processData = await getItemFromDynamoDB(processTable, { userId: chatId, publicAddress: publicAddress });
+    const processData = await getItemFromDynamoDB(processTable, { userId: chatId });
     const data = processData.mintFullData;
 
     await handleMintStep4(chatId, null, data);

@@ -20,6 +20,13 @@ export async function handleStart(chatId) {
         };
     
         await addItemToDynamoDB(userTable, userItem);
+
+        const processItem = {
+            userId: chatId,
+        };
+
+        const processTable = process.env.PROCESS_TABLE_NAME;
+        await addItemToDynamoDB(processTable, processItem);
     }
     
     const keyboard = {
