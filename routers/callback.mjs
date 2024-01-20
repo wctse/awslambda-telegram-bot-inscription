@@ -3,7 +3,7 @@ import { handleImportWalletStep1 } from "../handlers/importWallet.mjs";
 import { handleStart } from "../handlers/start.mjs";
 import { handleMainMenu } from "../handlers/mainMenu.mjs";
 import { handleMintStep1, handleMintStep2, handleMintStep5, handleMintRepeat } from "../handlers/mint.mjs";
-import { handleTransferStep1 } from "../handlers/transfer.mjs";
+import { handleTransferConfirm, handleTransferInitiate, handleTransferTokenInput } from "../handlers/transfer.mjs";
 import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 
@@ -47,7 +47,7 @@ export async function callback_router(data, chatId, messageId) {
 
     // Transfer button
     else if (data === 'transfer') {
-        await handleTransferStep1(chatId);
+        await handleTransferInitiate(chatId);
     }
 
     // View wallet button
@@ -80,6 +80,18 @@ export async function callback_router(data, chatId, messageId) {
     // Repeat in mint step 5
     else if (data === 'mint_repeat') {
         await handleMintRepeat(chatId);
+    }
+
+    
+    // -- TRANSFER -- //
+    // Ticker in transfer step 1
+    else if (data.startsWith('transfer_token_')) {
+        const dataArray = data.split('_');
+        await handleTransferTokenInput(chatId, dataArray[2], dataArray[3]);
+    }
+
+    else if (data === 'transfer_confirm') {
+        await handleTransferConfirm(chatId);
     }
 
 
