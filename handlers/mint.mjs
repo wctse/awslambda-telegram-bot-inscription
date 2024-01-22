@@ -2,13 +2,14 @@ import { bot, mainMenuKeyboard, cancelMainMenuKeyboard } from '../helpers/bot.mj
 import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB  } from '../helpers/dynamoDB.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
-import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 import { round, updateNonce } from '../helpers/commonUtils.mjs';
 import { getEthPrice } from '../helpers/coingecko.mjs';
+import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
 const userTable = process.env.USER_TABLE_NAME;
+const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
 /**
  * Mint step 1: Handle initiation and prompts the user to choose the protocol to mint in
@@ -19,14 +20,20 @@ export async function handleMintInitiate(chatId) {
     const publicAddress = await getWalletAddressByUserId(chatId);
     const ethBalance = await getEthBalance(publicAddress);
 
+    const mintDescriptionMessage = 
+        "✍️ The mint feature mints new inscription tokens that was deployed. \n" +
+        "\n"
+
     if (ethBalance == 0) {
-        const noEthMessage = `⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.`;
+        const noEthMessage = mintDescriptionMessage + 
+            "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
         
         await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
         return;
     }
 
-    const mintProtocolInputMessage = "Please choose the protocol to use, or input the whole inscription data directly.";
+    const mintProtocolInputMessage = mintDescriptionMessage + 
+        "Please choose the protocol to use, or input the whole inscription data directly.";
 
     const mintProtocolInputKeyboard = {
         inline_keyboard: [[
@@ -87,49 +94,21 @@ export async function handleMintTickerInput(chatId, ticker) {
 /**
  * Mint step 4: Handle input of the amount to mint and prompts the user to confirm the mint.
  * 
- * @param {*} chatId Telegram user ID
- * @param {*} amount Amount to mint
- * @param {*} data Inscription full data, used if the inscription data is generated at the start of the process; //TODO: Move to a separate feature
+ * @param {number} chatId Telegram user ID
+ * @param {number} amount Amount to mint
  */
-export async function handleMintAmountInput(chatId, amount = null, data = null) {
+export async function handleMintAmountInput(chatId, amount) {
     const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
     const publicAddress = walletItem.publicAddress;
     const chainName = walletItem.chainName;
 
-    let protocol, ticker;
-    if (amount) {
-        // Case where the inscription data is generated from the user input in all previous steps
-        const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
-        protocol = processItem.mintProtocol;
-        ticker = processItem.mintTicker;
+    const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
+    const protocol = processItem.mintProtocol;
+    const ticker = processItem.mintTicker;
 
-        data = `data:application/json,{"p":"${protocol}","op":"mint","tick":"${ticker}","amt":"${amount}","nonce":""}`;
-        
-        await editItemInDynamoDB(processTable, { userId: chatId }, { mintData: data });
-
-    } else if (data) {
-        // Case where the inscription data is directly provided
-        await editItemInDynamoDB(processTable, { userId: chatId }, { mintData: data });
-
-        try {
-            const jsonPart = data.substring(data.indexOf(',') + 1);
-            const jsonData = JSON.parse(jsonPart);
-            protocol = jsonData.p; 
-            ticker = jsonData.tick;
-            amount = jsonData.amt;
-
-        } catch (error) {
-            console.error('Error parsing inscription data in handleMintAmountInput:', error);
-        }
-    } else {
-        console.error("No amount or data provided in handleMintAmountInput.");
-    }
-
-    if (!protocol || !ticker || !amount) {
-        bot.sendMessage(chatId, "⚠️ The information provided is incorrect. Please try again.", { reply_markup: cancelMainMenuKeyboard });
-        console.warn("No protocol, ticker or amount provided in handleMintAmountInput.");
-        return;
-    }
+    const data = `data:application/json,{"p":"${protocol}","op":"mint","tick":"${ticker}","amt":"${amount}","nonce":""}`;
+    
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintData: data });
 
     const currentGasPrice = await getCurrentGasPrice()
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
@@ -219,7 +198,6 @@ export async function handleMintConfirm(chatId) {
     const txTimestamp = txResponse.timestamp;
 
     // Add the transaction record to the database
-    const transactionTable = process.env.TRANSACTION_TABLE_NAME;
     const jsonPart = data.substring(data.indexOf(',') + 1);
     const jsonData = JSON.parse(jsonPart);
     const protocol = jsonData.p;

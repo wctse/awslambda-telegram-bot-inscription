@@ -6,6 +6,7 @@ import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleM
 import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";
 import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
+import { handleCustomDataConfirm, handleCustomDataInitiate } from "../handlers/customData.mjs";
 
 import { editUserState } from "../helpers/dynamoDB.mjs";
 
@@ -48,6 +49,11 @@ export async function routeCallback(data, chatId, messageId) {
     // Transfer button
     else if (data === 'transfer') {
         await handleTransferInitiate(chatId);
+    }
+    
+    // Custom data button
+    else if (data === 'custom_data') {
+        await handleCustomDataInitiate(chatId);
     }
 
     // View wallet button
@@ -94,6 +100,12 @@ export async function routeCallback(data, chatId, messageId) {
         await handleTransferConfirm(chatId);
     }
 
+    
+    // -- CUSTOM DATA -- //
+    else if (data === 'custom_data_confirm') {
+        await handleCustomDataConfirm(chatId);
+    }
+    
 
     // -- VIEW WALLET -- //
     // Refresh view wallet in view wallet

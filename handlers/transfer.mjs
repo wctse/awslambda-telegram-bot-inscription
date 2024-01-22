@@ -11,6 +11,8 @@ import config from '../config.json' assert { type: 'json' }; // Lambda IDE will 
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
+const userTable = process.env.USER_TABLE_NAME;
+const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
 /**
  * Transfer step 1: Handle initiation and prompts the user to select a token to transfer.
@@ -21,16 +23,29 @@ export async function handleTransferInitiate(chatId) {
     // Check user balances to provide a list of tokens to transfer
     const userItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId); 
     const publicAddress = userItem[0].publicAddress;
+    const ethBalance = await getEthBalance(publicAddress);
     const ierc20Balances = await getIerc20Balance(publicAddress);
+
+    const transferDescriptionMessage =
+        "💸 The transfer feature transfers ownership of inscription tokens from this wallet to another. \n" +
+        "\n"
+
+    if (ethBalance == 0) {
+        const noEthMessage = mintDescriptionMessage + 
+            "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
+        
+        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
+        return;
+    }
 
     // Case if user has no balances, still allow them to mint as the database may be out of sync
     if (Object.keys(ierc20Balances).length === 0) {
-        let transferNoBalanceMessage = 
-            `⛔ You have no balances to transfer.\n` +
-            `Do you want to mint some tokens?` +
-            balanceCalculationMessage + `\n` +
-            `\n` +
-            `If you checked your balances and still wish to transfer, please input the token ticker below:`;
+        let transferNoBalanceMessage = transferDescriptionMessage +
+            "⛔ You have no balances to transfer.\n" +
+            "Do you want to mint some tokens?" +
+            balanceCalculationMessage + "\n" +
+            "\n" +
+            "If you checked your balances and still wish to transfer, please input the token ticker below:";
 
         const transferNoBalanceKeyboard = {
             inline_keyboard: [[
@@ -47,7 +62,7 @@ export async function handleTransferInitiate(chatId) {
     const ierc20Tickers = Object.keys(ierc20Balances);
     const ierc20TickersChunks = chunkArray(ierc20Tickers, 4);
 
-    const transferTokenInputMessage = 
+    const transferTokenInputMessage = transferDescriptionMessage +
         `🔑 Please select the token you want to transfer.\n` +
         `\n` +
 
@@ -201,8 +216,6 @@ export async function handleTransferAmountInput(chatId, amount) {
  * @param {number} chatId Telegram user ID
  */
 export async function handleTransferConfirm(chatId) {
-    const userTable = process.env.USER_TABLE_NAME;
-
     const processItem = (await getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId))[0];
     const promptedAt = processItem.transferReviewPromptedAt;
 
@@ -243,8 +256,6 @@ export async function handleTransferConfirm(chatId) {
     const ticker = inscriptionData.tick;
     const amount = inscriptionData.to[0].amt;
     const recipient = inscriptionData.to[0].recv;
-
-    const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
     const addTransactionToDbPromise = addItemToDynamoDB(transactionTable, { 
         userId: chatId,

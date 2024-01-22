@@ -2,15 +2,12 @@ import { handleStart } from '../handlers/start.mjs';
 import { handleMintTickerInput, handleMintAmountInput } from '../handlers/mint.mjs';
 import { handleImportWalletKeyInput } from '../handlers/importWallet.mjs';
 import { handleTransferTickerInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
+import { handleCustomDataInput } from '../handlers/customData.mjs';
 
 export async function routeMessage(text, userState, chatId) {
     // Initialization of chat
     if (text === '/start') {
         await handleStart(chatId);
-
-    // Full data input for mint
-    } else if (text.startsWith('data:') && userState === 'MINT_INITIATED') {
-        await handleMintAmountInput(chatId, null, text);
 
     // Token standard input for mint
     } else if (userState === 'MINT_PROTOCOL_INPUTTED') {
@@ -18,7 +15,7 @@ export async function routeMessage(text, userState, chatId) {
 
     // Amount input for mint
     } else if (!Number.isNaN(text) && userState === 'MINT_TICKER_INPUTTED') {
-        await handleMintAmountInput(chatId, text, null);
+        await handleMintAmountInput(chatId, text);
 
     // Wallet address input for import wallet
     } else if (userState === 'IMPORT_WALLET_INITIATED') {
@@ -35,6 +32,9 @@ export async function routeMessage(text, userState, chatId) {
 
     } else if (userState === 'TRANSFER_RECIPIENT_INPUTTED') {
         await handleTransferAmountInput(chatId, text);
+
+    } else if (userState === 'CUSTOM_DATA_INITIATED') {
+        await handleCustomDataInput(chatId, text);
 
     } else {
         console.info('Unknown message received:', text);

@@ -57,7 +57,6 @@ export async function sendTransaction(privateKey, data, to = null, gasSetting = 
 
     // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified, when gasSetting is not 'auto'
     const feeData = await provider.getFeeData();
-    console.debug(feeData)
 
     const transaction = gasSetting === 'auto' ? 
     {

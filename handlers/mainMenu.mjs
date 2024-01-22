@@ -16,9 +16,10 @@ export async function handleMainMenu(chatId) {
             [
                 { text: "✍️ Mint", callback_data: "mint" },
                 { text: "💸 Transfer", callback_data: "transfer" },
-                { text: "💰 View Wallet", callback_data: "view_wallet" }
+                { text: "📝 Custom data", callback_data: "custom_data"}
             ],
             [
+                { text: "💰 View Wallet", callback_data: "view_wallet" },
                 { text: "⚙️ Settings", callback_data: "settings" },
                 { text: "🔄 Refresh", callback_data: "refresh_main_menu" }
             ]
