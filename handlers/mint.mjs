@@ -1,35 +1,36 @@
-import { bot, cancelMainMenuKeyboard } from '../helpers/bot.mjs';
+import { bot, mainMenuKeyboard, cancelMainMenuKeyboard } from '../helpers/bot.mjs';
 import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB  } from '../helpers/dynamoDB.mjs';
-import { getCurrentGasPrice, getEthBalance, sendTransaction, addNonce } from '../helpers/ethers.mjs';
+import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
-import { round } from '../helpers/commonUtils.mjs';
+import { round, updateNonce } from '../helpers/commonUtils.mjs';
 import { getEthPrice } from '../helpers/coingecko.mjs';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
 const userTable = process.env.USER_TABLE_NAME;
 
-// Step 1: Ask the user to choose the token standard to use, or have the user directly input the whole inscription data
-// TODO: Check why sometimes the bot would send the same message twice
-export async function handleMintStep1(chatId) {
+/**
+ * Mint step 1: Handle initiation and prompts the user to choose the protocol to mint in
+ * 
+ * @param {number} chatId Telegram user ID
+ */
+export async function handleMintInitiate(chatId) {
     const publicAddress = await getWalletAddressByUserId(chatId);
     const ethBalance = await getEthBalance(publicAddress);
 
     if (ethBalance == 0) {
-        const mainMenuKeyboard = {
-            inline_keyboard: [[
-                { text: "️↩️ Main menu", callback_data: "main_menu" }
-            ]]
-        };
+        const noEthMessage = `⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.`;
         
-        await bot.sendMessage(chatId, "You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.", { reply_markup: mainMenuKeyboard });
+        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
         return;
     }
 
-    const step1Keyboard = {
+    const mintProtocolInputMessage = "Please choose the protocol to use, or input the whole inscription data directly.";
+
+    const mintProtocolInputKeyboard = {
         inline_keyboard: [[
-            { text: "ierc-20", callback_data: "mint_step1_ierc20" }
+            { text: "ierc-20", callback_data: "mint_protocol_ierc-20" }
         ],
         [
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
@@ -37,74 +38,78 @@ export async function handleMintStep1(chatId) {
     ]
     };
 
-    // If the user input the inscription data directly, the bot will jump to the review step
-    const step1Message = "Please choose the token standard to use, or input the whole inscription data directly.";
-
-    await editUserState(chatId, 'MINT_STEP1');
-    await bot.sendMessage(chatId, step1Message, { reply_markup: step1Keyboard });
+    await editUserState(chatId, 'MINT_INITIATED');
+    await bot.sendMessage(chatId, mintProtocolInputMessage, { reply_markup: mintProtocolInputKeyboard });
 }
 
-// Step 2: Receive the token standard and ask the user to input the token ticker
-export async function handleMintStep2(chatId, tokenStandard) {
+/**
+ * Mint step 2: Handle input of the protocol to mint in and prompts the user to input the token ticker
+ * 
+ * @param {number} chatId Telegram user ID 
+ * @param {str} protocol Protocol of the token to mint
+ */
+export async function handleMintProtocolInput(chatId, protocol) {
     // Write the user input token standard to DynamoDB
-    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTokenStandard: tokenStandard});
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintProtocol: protocol });
 
-    const step2Message = 
-        `✅ You have chosen \`${tokenStandard}\` as the token standard. \n` +
+    const mintTokenInputMessage = 
+        `✅ You have chosen \`${protocol}\` as the protocol. \n` +
         `\n` +
         `👇 Please input the token ticker.\n` +
         `\n` +
         `📖 [You can search for existing tokens on ierc20.com.](https://www.ierc20.com/)`;
 
-    await editUserState(chatId, 'MINT_STEP2');
-    await bot.sendMessage(chatId, step2Message, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
+    await editUserState(chatId, 'MINT_PROTOCOL_INPUTTED');
+    await bot.sendMessage(chatId, mintTokenInputMessage, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
 }
 
-// Step 3: Ask the user for the amount to mint
-export async function handleMintStep3(chatId, tokenTicker) {
+/**
+ * Mint step 3: Handle input of the token ticker and prompts the user to input the amount to mint
+ * 
+ * @param {number} chatId Telegram user ID
+ * @param {str} ticker Ticker of the token to mint
+ */
+export async function handleMintTickerInput(chatId, ticker) {
     // Write the user input token ticker to DynamoDB
-    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTokenTicker: tokenTicker});
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTicker: ticker});
 
-    const step3Message =
-        `✅ You have chosen \`${tokenTicker}\` as the token ticker.\n` +
+    const mintAmountInputMessage =
+        `✅ You have chosen \`${ticker}\` as the token ticker.\n` +
         `\n` +
         `👇 Please input the amount to mint. Do not exceed the minting limit.\n` +
         `\n` +
-        `📖 [Check the ${tokenTicker} minting limit on ierc20.com.](https://www.ierc20.com/tick/${tokenTicker})`;
+        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://www.ierc20.com/tick/${ticker})`;
 
-    await editUserState(chatId, 'MINT_STEP3');
-    await bot.sendMessage(chatId, step3Message, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
+    await editUserState(chatId, 'MINT_TICKER_INPUTTED');
+    await bot.sendMessage(chatId, mintAmountInputMessage, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
 }
 
-// Step 4: Review and confirm the inscription data.
-// TODO: Check why confirmation messages, if not responded to, would repeat itself every minute
-export async function handleMintStep4(chatId, amount = null, data = null, retry = null) {
-    const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
-    const publicAddress = walletData[0].publicAddress;
-    const chainName = walletData[0].chainName;
-    
-    if (retry === 'timeout') {
-        await bot.sendMessage(chatId, "⌛ The inscription process has timed out. Please reconfirm:");
-
-    } else if (retry === 'expensive_gas') {
-        await bot.sendMessage(chatId, "⌛ The gas price increased a lot. Please reconfirm:");
-
-    }
+/**
+ * Mint step 4: Handle input of the amount to mint and prompts the user to confirm the mint.
+ * 
+ * @param {*} chatId Telegram user ID
+ * @param {*} amount Amount to mint
+ * @param {*} data Inscription full data, used if the inscription data is generated at the start of the process; //TODO: Move to a separate feature
+ */
+export async function handleMintAmountInput(chatId, amount = null, data = null) {
+    const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
+    const publicAddress = walletItem.publicAddress;
+    const chainName = walletItem.chainName;
 
     let protocol, ticker;
     if (amount) {
         // Case where the inscription data is generated from the user input in all previous steps
-        const processData = await getItemFromDynamoDB(processTable, { userId: chatId });
-        protocol = processData.mintTokenStandard;
-        ticker = processData.mintTokenTicker;
+        const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
+        protocol = processItem.mintProtocol;
+        ticker = processItem.mintTicker;
 
-        data = `data:application/json,{"p":"` + protocol + `","op":"mint","tick":"` + ticker + `","amt":"` + amount + `"}`;
+        data = `data:application/json,{"p":"${protocol}","op":"mint","tick":"${ticker}","amt":"${amount}","nonce":""}`;
         
-        await editItemInDynamoDB(processTable, { userId: chatId }, { mintFullData: data });
+        await editItemInDynamoDB(processTable, { userId: chatId }, { mintData: data });
 
     } else if (data) {
         // Case where the inscription data is directly provided
-        await editItemInDynamoDB(processTable, { userId: chatId }, { mintFullData: data });
+        await editItemInDynamoDB(processTable, { userId: chatId }, { mintData: data });
 
         try {
             const jsonPart = data.substring(data.indexOf(',') + 1);
@@ -114,15 +119,15 @@ export async function handleMintStep4(chatId, amount = null, data = null, retry 
             amount = jsonData.amt;
 
         } catch (error) {
-            console.error('Error parsing inscription data in handleMintStep4:', error);
+            console.error('Error parsing inscription data in handleMintAmountInput:', error);
         }
     } else {
-        console.error("No amount or fullData provided in handleMintStep4.");
+        console.error("No amount or data provided in handleMintAmountInput.");
     }
 
     if (!protocol || !ticker || !amount) {
         bot.sendMessage(chatId, "⚠️ The information provided is incorrect. Please try again.", { reply_markup: cancelMainMenuKeyboard });
-        console.warn("No protocol, ticker or amount provided in handleMintStep4.");
+        console.warn("No protocol, ticker or amount provided in handleMintAmountInput.");
         return;
     }
 
@@ -130,9 +135,7 @@ export async function handleMintStep4(chatId, amount = null, data = null, retry 
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
     const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
-    await editItemInDynamoDB(processTable, { userId: chatId }, { mintGasPrice: currentGasPrice });
-
-    let step4Message = 
+    let mintReviewMessage = 
         `⌛ Please review the inscription information below. \n` +
         `\n` +
         `Wallet: \`${publicAddress}\`\n` +
@@ -146,68 +149,74 @@ export async function handleMintStep4(chatId, amount = null, data = null, retry 
 
     const ethBalance = await getEthBalance(publicAddress);
     if (ethBalance < estimatedGasCost) {
-        step4Message += "\n\n" +    
+        mintReviewMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
             "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
     }
 
-    step4Message += "\n\n" +
+    mintReviewMessage += "\n\n" +
         "☝️ Please confirm the information in 1 minute:";
 
-    const step4Keyboard = {
+    const mintReviewKeyboard = {
         inline_keyboard: [[
-            { text: "✅ Confirm", callback_data: "mint_step4_confirm" },
+            { text: "✅ Confirm", callback_data: "mint_confirm" },
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
         ]]
     };
 
-    await editUserState(chatId, 'MINT_STEP4');
-    await editItemInDynamoDB(processTable, { userId: chatId }, { mintConfirmPromptTime: Date.now() });
-    await bot.sendMessage(chatId, step4Message, { reply_markup: step4Keyboard, parse_mode: 'Markdown' });
+    const currentTime = Date.now();
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintReviewPromptedAt: currentTime, mintGasPrice: currentGasPrice });
+
+    await editUserState(chatId, 'MINT_AMOUNT_INPUTTED');
+    await bot.sendMessage(chatId, mintReviewMessage, { reply_markup: mintReviewKeyboard, parse_mode: 'Markdown' });
 }
 
-// Step 5: Send the transaction to the blockchain
-// TODO: Prevent the user from sending the same transaction twice
-export async function handleMintStep5(chatId) {
-    const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
-    const publicAddress = walletData[0].publicAddress;
-    const processData = await getItemFromDynamoDB(processTable, { userId: chatId });
-    let data = processData.mintFullData;
+/**
+ * Mint step 5: Handle confirmation of the mint and send the transaction to the blockchain
+ * 
+ * @param {number} chatId 
+ */
+export async function handleMintConfirm(chatId) {
+    const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
+    const publicAddress = walletItem.publicAddress;
+    
+    const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
+    let data = processItem.mintData;
 
     // Check validity of data
     if (!data) {
         bot.sendMessage(chatId, "⚠️ An error has occurred. Please try again.", { reply_markup: backToMainMenuKeyboard });
-        console.error("No inscription data provided in handleMintStep5.");
+        console.error("No inscription data provided in handleMintConfirm.");
         return;
     }
     
     // Check for time elapsed, if more than 1 minute, go back to step 4 and prompt the user again to confirm
-    if (Date.now() - processData.mintConfirmPromptTime > 60000) {
-        await handleMintStep4(chatId, null, data, 'timeout');
+    if (Date.now() - processItem.mintReviewPromptedAt > 60000) {
+        await handleMintReviewRetry(chatId, 'timeout');
         return;
     }
 
     // Check for current gas prices. If the gas price is at least 10% more expensive, go back to step 4 and prompt the user again to confirm
     const currentGasPrice = await getCurrentGasPrice();
-    const previousGasPrice = processData.mintGasPrice;
+    const previousGasPrice = processItem.mintGasPrice;
 
     if (currentGasPrice > previousGasPrice * 1.1) {
-        await handleMintStep4(chatId, null, data, 'expensive_gas');
+        await handleMintReviewRetry(chatId, 'expensive_gas');
         return;
     }
 
-    const encryptedPrivateKey = walletData[0].encryptedPrivateKey;
+    const encryptedPrivateKey = walletItem.encryptedPrivateKey;
     const privateKey = await decrypt(encryptedPrivateKey);
     const gasSetting = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings.gas;
 
     // Send the transaction to the blockchain
-    data = await addNonce(data);
+    data = updateNonce(data);
 
     // TODO: Implement logic to change the 'to' address to non-zero for other token standards
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
 
-    const txTimestamp = Date.now();
     const txHash = txResponse.hash;
+    const txTimestamp = txResponse.timestamp;
 
     // Add the transaction record to the database
     const transactionTable = process.env.TRANSACTION_TABLE_NAME;
@@ -254,9 +263,95 @@ export async function handleMintStep5(chatId) {
     await editUserState(chatId, 'IDLE');
 }
 
-export async function handleMintRepeat(chatId) {
-    const processData = await getItemFromDynamoDB(processTable, { userId: chatId });
-    const data = processData.mintFullData;
+/**
+ * Mint step 4 retry: Handle retry of the mint confirmation and prompts the user to confirm the mint again
+ * Takes the existing inscription data from the database and extract components to form the review message
+ * 
+ * @param {number} chatId Telegram user ID
+ * @param {str} retryReason Reason for mint confirmation retry. Expected values: 'repeat_mint', 'timeout', 'expensive_gas'.
+ */
+async function handleMintReviewRetry(chatId, retryReason) {
+    if (retryReason === 'repeat_mint') {
+        // Don't need to do anything here as there is nothing going wrong to let the user know
 
-    await handleMintStep4(chatId, null, data);
+    } else if (retryReason === 'timeout') {
+        await bot.sendMessage(chatId, "⌛ The inscription process has timed out. Please reconfirm:");
+
+    } else if (retryReason === 'expensive_gas') {
+        await bot.sendMessage(chatId, "⌛ The gas price increased a lot. Please reconfirm:");
+
+    } else {
+        console.warn('Unknown reason for transfer confirmation retry: ', retryReason);
+    }
+
+    const processItem = (await getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId))[0];
+    const data = processItem.mintData;
+
+    // Reconstruct the components of the transfer from the inscription data
+    const inscriptionData = JSON.parse(data.substring(22));
+
+    const protocol = inscriptionData.p;
+    const ticker = inscriptionData.tick;
+    const amount = inscriptionData.amt;
+
+    // Get wallet and network information
+    const walletItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
+    const publicAddress = walletItem[0].publicAddress;
+    const chainName = walletItem[0].chainName;
+
+    const currentGasPrice = await getCurrentGasPrice();
+    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
+    const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
+
+
+    let mintReviewMessage = 
+        `⌛ Please review the inscription information below. \n` +
+        `\n` +
+        `Wallet: \`${publicAddress}\`\n` +
+        `Chain: \`${chainName}\`\n` +
+        `Protocol: \`${protocol}\`\n` +
+        `Ticker: \`${ticker}\`\n` +
+        `Amount: \`${amount}\`\n` +
+        `\n` +
+        `Current Gas Price: ${currentGasPrice} Gwei\n` +
+        `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
+
+    const ethBalance = await getEthBalance(publicAddress);
+    if (ethBalance < estimatedGasCost) {
+        mintReviewMessage += "\n\n" +    
+            "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. " +
+            "You can still proceed, but the transaction is likely to fail. " +
+            "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
+    }
+
+    if (retryReason === 'repeat_mint' && protocol === 'ierc-20') {
+        mintReviewMessage += "\n\n" +
+            "⚠️ NOTE: For ierc-20 tokens, it is suggested to wait for at least 15 seconds before repeating to prevent invalid minting."
+    }
+    
+    mintReviewMessage += "\n\n" +
+        "☝️ Please confirm the information in 1 minute:";
+
+    const mintReviewKeyboard = {
+        inline_keyboard: [[
+            { text: "✅ Confirm", callback_data: "mint_confirm" },
+            { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
+        ]]
+    };
+
+    const currentTime = Date.now();
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintReviewPromptedAt: currentTime, mintGasPrice: currentGasPrice });
+
+    await editUserState(chatId, 'MINT_AMOUNT_INPUTTED');
+    await bot.sendMessage(chatId, mintReviewMessage, { reply_markup: mintReviewKeyboard, parse_mode: 'Markdown' });
+}
+
+/**
+ * Mint step 6 (optional): Handle repeated minting and triggers step 4 again
+ * As the logic is the very similar as retrying the mint confirmation, this function simply calls handleMintReviewRetry() and specifying the reason as 'repeat_mint'
+ * 
+ * @param {number} chatId Telegram user ID
+ */
+export async function handleMintRepeat(chatId) {
+    await handleMintReviewRetry(chatId, 'repeat_mint');
 }

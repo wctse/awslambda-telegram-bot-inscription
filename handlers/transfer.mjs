@@ -1,6 +1,6 @@
 import { isHexString } from 'ethers';
 import { balanceCalculationMessage, bot, cancelMainMenuKeyboard } from '../helpers/bot.mjs';
-import { chunkArray, round } from '../helpers/commonUtils.mjs';
+import { chunkArray, round, updateNonce } from '../helpers/commonUtils.mjs';
 import { addItemToDynamoDB, editItemInDynamoDB, getItemFromDynamoDB, getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
 import { editUserState } from '../helpers/dynamoDB.mjs';
 import { getIerc20Balance } from '../helpers/ierc20.mjs';
@@ -15,7 +15,7 @@ const processTable = process.env.PROCESS_TABLE_NAME;
 /**
  * Transfer step 1: Handle initiation and prompts the user to select a token to transfer.
  * 
- * @param {number} chatId Chat ID of user
+ * @param {number} chatId Telegram user ID
  */
 export async function handleTransferInitiate(chatId) {
     // Check user balances to provide a list of tokens to transfer
@@ -79,11 +79,11 @@ export async function handleTransferInitiate(chatId) {
 /**
  * Transfer step 2: Handle input of token ticker and prompts the user to input the recipient address.
  * 
- * @param {number} chatId Chat ID of user
- * @param {str} ticker Token ticker to transfer
+ * @param {number} chatId Telegram user ID
+ * @param {str} ticker Ticker of the token to transfer
  * @param {str} protocol Protocol of the token to transfer
  */
-export async function handleTransferTokenInput(chatId, ticker, protocol) {
+export async function handleTransferTickerInput(chatId, ticker, protocol) {
     const transferRecipientInputMessage = 
         `✅ You have selected to transfer \`${ticker}\` of \`${protocol}\`.\n` +
         `\n` +
@@ -103,8 +103,8 @@ export async function handleTransferTokenInput(chatId, ticker, protocol) {
 /**
  * Transfer step 3: Handle input of recipient address and prompts the user to input the amount.
  * 
- * @param {*} chatId Chat ID of user
- * @param {*} recipient Recipient address of the transfer. '0x' followed by a 20-byte hex string.
+ * @param {number} chatId Telegram user ID
+ * @param {str} recipient Recipient address of the transfer. '0x' followed by a 20-byte hex string.
  */
 export async function handleTransferRecipientInput(chatId, recipient) {
     if (!isHexString(recipient, 20)) {
@@ -131,8 +131,8 @@ export async function handleTransferRecipientInput(chatId, recipient) {
 /**
  * Transfer step 4: Handle input of amount and prompts the user to confirm the transfer.
  * 
- * @param {*} chatId Chat ID of user
- * @param {*} amount Amount to transfer
+ * @param {number} chatId Telegram user ID
+ * @param {number} amount Amount to transfer
  */
 export async function handleTransferAmountInput(chatId, amount) {
     if (Number.isNaN(amount)) {
@@ -161,7 +161,7 @@ export async function handleTransferAmountInput(chatId, amount) {
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
     const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
-    let transferConfirmationMessage =
+    let transferReviewMessage =
         `⌛ Please review the transfer information below. \n` +
         `\n` +
         `Wallet: \`${publicAddress}\`\n` +
@@ -175,40 +175,40 @@ export async function handleTransferAmountInput(chatId, amount) {
         `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
 
     if (walletBalance < estimatedGasCost) {
-        transferConfirmationMessage += "\n\n" +    
+        transferReviewMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
             "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
     }
 
-    transferConfirmationMessage += "\n\n" +
+    transferReviewMessage += "\n\n" +
         "☝️ Please confirm the information in 1 minute:";
 
-    const transferConfirmationKeyboard = {
+    const transferReviewKeyboard = {
         inline_keyboard: [[
             { text: "✅ Confirm", callback_data: "transfer_confirm" },
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
         ]]
     };
 
-    await editItemInDynamoDB(processTable, { userId: chatId }, { transferData: data, transferConfirmPromptedAt: currentTime, transferGasPrice: currentGasPrice });
+    await editItemInDynamoDB(processTable, { userId: chatId }, { transferData: data, transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice });
     await editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED");
-    await bot.sendMessage(chatId, transferConfirmationMessage, { reply_markup: transferConfirmationKeyboard, parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, transferReviewMessage, { reply_markup: transferReviewKeyboard, parse_mode: 'Markdown' });
 }
 
 /**
  * Transfer step 5: Handle confirmation of transfer and processes the transfer.
  * 
- * @param {*} chatId Chat ID of user
+ * @param {number} chatId Telegram user ID
  */
 export async function handleTransferConfirm(chatId) {
     const userTable = process.env.USER_TABLE_NAME;
 
     const processItem = (await getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId))[0];
-    const promptedAt = processItem.transferConfirmPromptedAt;
+    const promptedAt = processItem.transferReviewPromptedAt;
 
     // Check for time elapsed, if more than 1 minute, go back to step 4 and prompt the user again to confirm
     if (Date.now() - promptedAt > 60000) {
-        await handleTransferConfirmRetry(chatId, 'timeout');
+        await handleTransferReviewRetry(chatId, 'timeout');
         return;
     }
 
@@ -216,7 +216,7 @@ export async function handleTransferConfirm(chatId) {
     const previousGasPrice = processItem.transferGasPrice;
 
     if (currentGasPrice > previousGasPrice * 1.1) {
-        await handleTransferConfirmRetry(chatId, 'expensive_gas');
+        await handleTransferReviewRetry(chatId, 'expensive_gas');
         return;
     }
 
@@ -228,7 +228,8 @@ export async function handleTransferConfirm(chatId) {
     const gasSetting = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings.gas;
 
     // Get the inscription
-    const data = processItem.transferData;
+    let data = processItem.transferData;
+    data = updateNonce(data);
 
     // Send the transaction
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
@@ -286,10 +287,10 @@ export async function handleTransferConfirm(chatId) {
 /**
  * Transfer step 4 (retry): Handle retry of confirmation of transfer and prompts the user to confirm the transfer again.
  * 
- * @param {number} chatId Chat ID of user
- * @param {str} retryReason Reason for transfer confirmation retry
+ * @param {number} chatId Telegram user ID
+ * @param {str} retryReason Reason for transfer confirmation retry. Expected values: 'timeout', 'expensive_gas'.
  */
-export async function handleTransferConfirmRetry(chatId, retryReason) {
+export async function handleTransferReviewRetry(chatId, retryReason) {
     if (retryReason === 'timeout') {
         await bot.sendMessage(chatId, "⌛ The inscription process has timed out. Please reconfirm:");
 
@@ -315,13 +316,13 @@ export async function handleTransferConfirmRetry(chatId, retryReason) {
     const walletItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
     const publicAddress = walletItem[0].publicAddress;
     const chainName = walletItem[0].chainName;
-    const walletBalance = await getEthBalance(publicAddress);
+    const ethBalance = await getEthBalance(publicAddress);
     
     const currentGasPrice = await getCurrentGasPrice();
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
     const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
-    let transferConfirmationMessage =
+    let transferSentMessage =
         `⌛ Please review the transfer information below. \n` +
         `\n` +
         `Wallet: \`${publicAddress}\`\n` +
@@ -334,16 +335,16 @@ export async function handleTransferConfirmRetry(chatId, retryReason) {
         `Current Gas Price: ${currentGasPrice} Gwei\n` +
         `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
 
-    if (walletBalance < estimatedGasCost) {
-        transferConfirmationMessage += "\n\n" +    
+    if (ethBalance < estimatedGasCost) {
+        transferSentMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
             "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
     }
 
-    transferConfirmationMessage += "\n\n" +
+    transferSentMessage += "\n\n" +
         "☝️ Please confirm the information in 1 minute:";
 
-    const transferConfirmationKeyboard = {
+    const transferSentKeyboard = {
         inline_keyboard: [[
             { text: "✅ Confirm", callback_data: "transfer_confirm" },
             { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
@@ -352,7 +353,7 @@ export async function handleTransferConfirmRetry(chatId, retryReason) {
 
     const currentTime = Date.now();
 
-    await editItemInDynamoDB(processTable, { userId: chatId }, { transferConfirmPromptedAt: currentTime, transferGasPrice: currentGasPrice });
+    await editItemInDynamoDB(processTable, { userId: chatId }, { transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice });
     await editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED");
-    await bot.sendMessage(chatId, transferConfirmationMessage, { reply_markup: transferConfirmationKeyboard, parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
 }

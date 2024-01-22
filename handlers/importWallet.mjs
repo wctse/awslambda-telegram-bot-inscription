@@ -1,12 +1,17 @@
 import { ethers } from 'ethers';
 
-import { bot, mainMenuKeyboard } from '../helpers/bot.mjs';
+import { bot } from '../helpers/bot.mjs';
 import { encrypt } from '../helpers/kms.mjs';
 import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB, editUserState } from '../helpers/dynamoDB.mjs';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 
-export async function handleImportWalletStep1(chatId) {
+/**
+ * Import wallet step 1: Prompts the user for private key
+ * 
+ * @param {number} chatId Telegram user ID
+ */
+export async function handleImportWalletInitiate(chatId) {
     const walletExistsForUser = await checkPartitionValueExistsInDynamoDB(walletTable, `userId`, chatId );
 
     if (walletExistsForUser) {
@@ -24,26 +29,32 @@ export async function handleImportWalletStep1(chatId) {
         return;
     }
 
-    const importWalletStep1Message = 
+    const importWalletKeyMessage = 
         `🔑 Please enter your private key below.` + '\n' +
         '\n' +
         `⚠️ Only import private keys with a small amount of funds! We will encrypt your private key in all storages.`;
     
-    await bot.sendMessage(chatId, importWalletStep1Message);
-    await editUserState(chatId, "IMPORT_WALLET_STEP1");
+    await bot.sendMessage(chatId, importWalletKeyMessage);
+    await editUserState(chatId, "IMPORT_WALLET_INITIATED");
 }
 
-export async function handleImportWalletStep2(chatId, privateKey) {
-    // If the private key is not 64 or 66 characters long, and not (text.match(/^[0-9a-fx]+$/)
+/**
+ * Import wallet step 2: Handles the user input for private key
+ * 
+ * @param {number} chatId 
+ * @param {str} privateKey 
+ */
+export async function handleImportWalletKeyInput(chatId, privateKey) {
+    // Custom validation rather than isHexString() for private key to cater for the case of having no 0x prefix
     if ((privateKey.length !== 64 && privateKey.length !== 66) || !privateKey.match(/^[0-9a-fx]+$/)) {
-        const invalidPrivateKeyMessage = `⚠️ Invalid private key. Please try again or go back to the previous page.`;
-        const invalidPrivateKeyButton = {
+        const importWalletInvalidKeyMessage = `⚠️ Invalid private key. Please try again or go back to the previous page.`;
+        const importWalletInvalidKeyKeyboard = {
             inline_keyboard: [[
                 { text: "🔙 Back", callback_data: "start" }
             ]]
         };
 
-        await bot.sendMessage(chatId, invalidPrivateKeyMessage, { reply_markup: invalidPrivateKeyButton });
+        await bot.sendMessage(chatId, importWalletInvalidKeyMessage, { reply_markup: importWalletInvalidKeyKeyboard });
         return;
     }
     
@@ -66,6 +77,14 @@ export async function handleImportWalletStep2(chatId, privateKey) {
     console.info("Adding new wallet to DynamoDB:", chatId, publicAddress);
     await addItemToDynamoDB(walletTable, newWalletItem);
 
-    await bot.sendMessage(chatId, `✅ Your Ethereum wallet has been imported: \`${publicAddress}\``, { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard }, );
+    const importWalletSuccessMessage = `✅ Your Ethereum wallet has been imported: \`${publicAddress}\``;
+    const importWalletSuccessKeyboard = {
+        inline_keyboard: [[
+            { text: "💰 View wallet", callback_data: "view_wallet" },
+            { text: "📃 Main menu", callback_data: "main_menu" }
+        ]]
+    };
+
+    await bot.sendMessage(chatId, importWalletSuccessMessage, { reply_markup: importWalletSuccessKeyboard, parse_mode: "Markdown" });
     editUserState(chatId, "IDLE");
 }

@@ -1,15 +1,15 @@
 import { handleCreateWallet } from "../handlers/createWallet.mjs";
-import { handleImportWalletStep1 } from "../handlers/importWallet.mjs";
+import { handleImportWalletInitiate } from "../handlers/importWallet.mjs";
 import { handleStart } from "../handlers/start.mjs";
 import { handleMainMenu } from "../handlers/mainMenu.mjs";
-import { handleMintStep1, handleMintStep2, handleMintStep5, handleMintRepeat } from "../handlers/mint.mjs";
-import { handleTransferConfirm, handleTransferInitiate, handleTransferTokenInput } from "../handlers/transfer.mjs";
+import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleMintRepeat } from "../handlers/mint.mjs";
+import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";
 import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 
 import { editUserState } from "../helpers/dynamoDB.mjs";
 
-export async function callback_router(data, chatId, messageId) {
+export async function routeCallback(data, chatId, messageId) {
     // -- INITIALIZATION -- //
     // Create wallet in start
     if (data === 'create_wallet') {
@@ -18,7 +18,7 @@ export async function callback_router(data, chatId, messageId) {
 
     // Import wallet in start
     else if (data === 'import_wallet') {
-        await handleImportWalletStep1(chatId);
+        await handleImportWalletInitiate(chatId);
     }
 
     // Back to start in import wallet
@@ -42,7 +42,7 @@ export async function callback_router(data, chatId, messageId) {
     // -- MAIN MENU -- //
     // Mint button
     else if (data === 'mint') {
-        await handleMintStep1(chatId);
+        await handleMintInitiate(chatId);
     }
 
     // Transfer button
@@ -68,13 +68,13 @@ export async function callback_router(data, chatId, messageId) {
 
     // -- MINT -- //
     // ierc20 in mint step 1
-    else if (data === 'mint_step1_ierc20') {
-        await handleMintStep2(chatId, 'ierc-20');
+    else if (data === 'mint_protocol_ierc-20') {
+        await handleMintProtocolInput(chatId, 'ierc-20');
     }
 
     // Confirm in mint step 4
-    else if (data === 'mint_step4_confirm') {
-        await handleMintStep5(chatId);
+    else if (data === 'mint_confirm') {
+        await handleMintConfirm(chatId);
     }
 
     // Repeat in mint step 5
@@ -87,7 +87,7 @@ export async function callback_router(data, chatId, messageId) {
     // Ticker in transfer step 1
     else if (data.startsWith('transfer_token_')) {
         const dataArray = data.split('_');
-        await handleTransferTokenInput(chatId, dataArray[2], dataArray[3]);
+        await handleTransferTickerInput(chatId, dataArray[2], dataArray[3]);
     }
 
     else if (data === 'transfer_confirm') {

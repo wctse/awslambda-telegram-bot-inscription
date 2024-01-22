@@ -85,35 +85,3 @@ export async function sendTransaction(privateKey, data, to = null, gasSetting = 
         throw error;
     }
 }
-
-export async function addNonce(data) {
-    // Check if the data URI contains "application/json"
-    let containsApplicationJson = data.includes("application/json");
-    let jsonPart;
-
-    // If it contains "application/json", remove it temporarily
-    if (containsApplicationJson) {
-        jsonPart = data.replace("data:application/json,", "");
-    } else {
-        jsonPart = data.replace("data:,", "");
-    }
-
-    // Parse the JSON part
-    let jsonObj = JSON.parse(jsonPart);
-
-    // Generate a nonce (simulated nanosecond timestamp)
-    let nonce = Date.now() * 1000000;
-
-    // Add the nonce to the JSON object
-    jsonObj.nonce = nonce.toString();
-
-    // Convert the object back to a JSON string
-    let modifiedJsonString = JSON.stringify(jsonObj);
-
-    // Reattach "application/json" if it was originally present
-    if (containsApplicationJson) {
-        return "data:application/json," + modifiedJsonString;
-    } else {
-        return "data:," + modifiedJsonString;
-    }
-}

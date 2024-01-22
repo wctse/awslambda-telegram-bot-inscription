@@ -1,5 +1,5 @@
-import { message_router } from './routers/message.mjs';
-import { callback_router } from './routers/callback.mjs';
+import { routeMessage } from './routers/message.mjs';
+import { routeCallback } from './routers/callback.mjs';
 import { deleteMessage } from './helpers/bot.mjs';
 import { editItemInDynamoDB, editUserState, getUserState } from './helpers/dynamoDB.mjs';
 
@@ -15,7 +15,7 @@ export async function handler(event, context) {
         const userState = await getUserState(chatId);
 
         await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true);
-        await message_router(text, userState, chatId);
+        await routeMessage(text, userState, chatId);
         
     } else if (update.callback_query) {
         const callbackQuery = update.callback_query;
@@ -24,7 +24,7 @@ export async function handler(event, context) {
         const data = callbackQuery.data;
 
         await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
-        await callback_router(data, chatId, messageId);
+        await routeCallback(data, chatId, messageId);
 
         if (data.includes('refresh')) {
             await deleteMessage(chatId, messageId);

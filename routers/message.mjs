@@ -1,33 +1,33 @@
 import { handleStart } from '../handlers/start.mjs';
-import { handleMintStep3, handleMintStep4 } from '../handlers/mint.mjs';
-import { handleImportWalletStep2 } from '../handlers/importWallet.mjs';
-import { handleTransferTokenInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
+import { handleMintTickerInput, handleMintAmountInput } from '../handlers/mint.mjs';
+import { handleImportWalletKeyInput } from '../handlers/importWallet.mjs';
+import { handleTransferTickerInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
 
-export async function message_router(text, userState, chatId) {
+export async function routeMessage(text, userState, chatId) {
     // Initialization of chat
     if (text === '/start') {
         await handleStart(chatId);
 
     // Full data input for mint
-    } else if (text.startsWith('data:') && userState === 'MINT_STEP1') {
-        await handleMintStep4(chatId, null, text);
+    } else if (text.startsWith('data:') && userState === 'MINT_INITIATED') {
+        await handleMintAmountInput(chatId, null, text);
 
     // Token standard input for mint
-    } else if (userState === 'MINT_STEP2') {
-        await handleMintStep3(chatId, text);
+    } else if (userState === 'MINT_PROTOCOL_INPUTTED') {
+        await handleMintTickerInput(chatId, text);
 
     // Amount input for mint
-    } else if (!Number.isNaN(text) && userState === 'MINT_STEP3') {
-        await handleMintStep4(chatId, text, null);
+    } else if (!Number.isNaN(text) && userState === 'MINT_TICKER_INPUTTED') {
+        await handleMintAmountInput(chatId, text, null);
 
     // Wallet address input for import wallet
-    } else if (userState === 'IMPORT_WALLET_STEP1') {
-        await handleImportWalletStep2(chatId, text);
+    } else if (userState === 'IMPORT_WALLET_INITIATED') {
+        await handleImportWalletKeyInput(chatId, text);
 
     // Ticker and protocol input for transfer
     // TODO: Consider protocol in input when multiple protocols are supported
     } else if (userState === 'TRANSFER_INITIATED') {
-        await handleTransferTokenInput(chatId, text, 'ierc-20');
+        await handleTransferTickerInput(chatId, text, 'ierc-20');
 
     // Recipient address input for transfer
     } else if (userState === 'TRANSFER_TOKEN_INPUTTED') {
