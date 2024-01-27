@@ -139,6 +139,7 @@ export async function handleCustomDataConfirm(chatId) {
 
     const transactionSentKeyboard = {
         inline_keyboard: [[
+            { text: "🔁 Repeat", callback_data: "custom_data_repeat" },
             { text: "🧘 Start over", callback_data: "custom_data" },
             { text: "💰 View wallet", callback_data: "view_wallet" },
         ],
@@ -162,6 +163,11 @@ export async function handleCustomDataRetry(chatId, retryReason) {
         console.warn('Unknown reason for transfer confirmation retry: ', retryReason);
     }
 
+    const data = (await getItemFromDynamoDB(processTable, { userId: chatId })).customDataData;
+    await handleCustomDataInput(chatId, data);
+}
+
+export async function handleCustomDataRepeat(chatId) {
     const data = (await getItemFromDynamoDB(processTable, { userId: chatId })).customDataData;
     await handleCustomDataInput(chatId, data);
 }

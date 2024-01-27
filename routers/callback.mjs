@@ -6,7 +6,7 @@ import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleM
 import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";
 import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
-import { handleCustomDataConfirm, handleCustomDataInitiate } from "../handlers/customData.mjs";
+import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepeat } from "../handlers/customData.mjs";
 
 import { editUserState } from "../helpers/dynamoDB.mjs";
 
@@ -104,6 +104,10 @@ export async function routeCallback(data, chatId, messageId) {
     // -- CUSTOM DATA -- //
     else if (data === 'custom_data_confirm') {
         await handleCustomDataConfirm(chatId);
+    }
+
+    else if (data === 'custom_data_repeat') {
+        await handleCustomDataRepeat(chatId);
     }
     
 
