@@ -40,6 +40,9 @@ export async function handleCreateWallet(chatId) {
         encryptedPrivateKey: encryptedPrivateKey,
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
+        walletSettings: {
+            gas: "auto"
+        }
     };
 
     // Add the user's wallet to DynamoDB

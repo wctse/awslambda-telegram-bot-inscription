@@ -85,8 +85,8 @@ export async function handleCustomDataInput(chatId, customData) {
 }
 
 export async function handleCustomDataConfirm(chatId) {
-    const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
-    const publicAddress = walletItem.publicAddress;
+    const walletAddress = await getWalletAddressByUserId(chatId);
+    const walletItem = await getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress});
     
     const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
     const data = processItem.customDataData;
@@ -108,7 +108,7 @@ export async function handleCustomDataConfirm(chatId) {
 
     const encryptedPrivateKey = walletItem.encryptedPrivateKey;
     const privateKey = await decrypt(encryptedPrivateKey);
-    const gasSetting = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings.gas;
+    const gasSetting = walletItem.walletSettings.gas;
 
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
 
@@ -117,7 +117,7 @@ export async function handleCustomDataConfirm(chatId) {
 
     await addItemToDynamoDB(transactionTable, { 
         userId: chatId,
-        publicAddress: publicAddress,
+        publicAddress: walletAddress,
         transactionHash: txHash,
         txType: 'custom_data',
         timestamp: txTimestamp,

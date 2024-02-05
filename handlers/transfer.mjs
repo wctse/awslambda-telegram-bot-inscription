@@ -216,7 +216,14 @@ export async function handleTransferAmountInput(chatId, amount) {
  * @param {number} chatId Telegram user ID
  */
 export async function handleTransferConfirm(chatId) {
-    const processItem = (await getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId))[0];
+    const [processItems, walletItems] = await Promise.all([
+        getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId),
+        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId)
+    ])
+
+    const processItem = processItems[0];
+    const walletItem = walletItems[0];
+
     const promptedAt = processItem.transferReviewPromptedAt;
 
     // Check for time elapsed, if more than 1 minute, go back to step 4 and prompt the user again to confirm
@@ -234,11 +241,10 @@ export async function handleTransferConfirm(chatId) {
     }
 
     // Get information of the user's wallet for transaction
-    const walletData = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
-    const publicAddress = walletData[0].publicAddress;
-    const encryptedPrivateKey = walletData[0].encryptedPrivateKey;
+    const publicAddress = walletItem.publicAddress;
+    const encryptedPrivateKey = walletItem.encryptedPrivateKey;
+    const gasSetting = walletItem.walletSettings.gas;
     const privateKey = await decrypt(encryptedPrivateKey);
-    const gasSetting = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings.gas;
 
     // Get the inscription
     let data = processItem.transferData;

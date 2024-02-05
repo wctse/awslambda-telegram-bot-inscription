@@ -78,7 +78,7 @@ export async function handleMintProtocolInput(chatId, protocol) {
  */
 export async function handleMintTickerInput(chatId, ticker) {
     // Write the user input token ticker to DynamoDB
-    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTicker: ticker});
+    await editItemInDynamoDB(processTable, { userId: chatId }, { mintTicker: ticker });
 
     const mintAmountInputMessage =
         `✅ You have chosen \`${ticker}\` as the token ticker.\n` +
@@ -98,6 +98,11 @@ export async function handleMintTickerInput(chatId, ticker) {
  * @param {number} amount Amount to mint
  */
 export async function handleMintAmountInput(chatId, amount) {
+    if (Number.isNaN(amount) || amount <= 0) {
+        await bot.sendMessage(chatId, "⚠️ Please input a valid number.");
+        return;
+    }
+
     const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
     const publicAddress = walletItem.publicAddress;
     const chainName = walletItem.chainName;
@@ -156,8 +161,8 @@ export async function handleMintAmountInput(chatId, amount) {
  * @param {number} chatId 
  */
 export async function handleMintConfirm(chatId) {
-    const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
-    const publicAddress = walletItem.publicAddress;
+    const walletAddress = await getWalletAddressByUserId(chatId);
+    const walletItem = await getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress });
     
     const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
     let data = processItem.mintData;
@@ -186,7 +191,7 @@ export async function handleMintConfirm(chatId) {
 
     const encryptedPrivateKey = walletItem.encryptedPrivateKey;
     const privateKey = await decrypt(encryptedPrivateKey);
-    const gasSetting = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings.gas;
+    const gasSetting = walletItem.walletSettings.gas;
 
     // Send the transaction to the blockchain
     data = updateNonce(data);
@@ -206,7 +211,7 @@ export async function handleMintConfirm(chatId) {
 
     await addItemToDynamoDB(transactionTable, { 
         userId: chatId,
-        publicAddress: publicAddress,
+        publicAddress: walletAddress,
         transactionHash: txHash,
         txType: 'mint',
         timestamp: txTimestamp,

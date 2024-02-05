@@ -1,21 +1,23 @@
 import { bot } from '../helpers/bot.mjs';
 import { toProperCase } from '../helpers/commonUtils.mjs';
-import { editItemInDynamoDB, getItemFromDynamoDB } from '../helpers/dynamoDB.mjs';
+import { editItemInDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId } from '../helpers/dynamoDB.mjs';
 
 const userTable = process.env.USER_TABLE_NAME;
+const walletTable = process.env.WALLET_TABLE_NAME;
 
 const gasSettings = ['auto', 'low', 'medium', 'high'];
 const gasEmojis = ['⚪️', '🔴', '🟡', '🟢'];
 
 export async function handleSettings(chatId) {
+    const walletAddress = await getWalletAddressByUserId(chatId);
+    const walletItem = await getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress});
+    const currentGasSetting = walletItem.walletSettings.gas;
+    const currentGasEmoji = gasEmojis[gasSettings.indexOf(currentGasSetting)];
+
     const settingsMessage =
         `⚙️ *User Settings*\n` +
         `\n` +
         `Here you can change your settings for the bot.`;
-
-    const userSettings = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings;
-    const currentGasSetting = userSettings.gas;
-    const currentGasEmoji = gasEmojis[gasSettings.indexOf(currentGasSetting)];
 
     const settingsKeyboard = {
         inline_keyboard: [
@@ -35,10 +37,12 @@ export async function handleSettingsGas(chatId, settingsMessageId, currentGasSet
     const newGasSetting = gasSettings[(gasSettings.indexOf(currentGasSetting) + 1) % gasSettings.length];
     const newGasEmoji = gasEmojis[gasSettings.indexOf(newGasSetting)];
 
-    const userSettings = (await getItemFromDynamoDB(userTable, { userId: chatId })).userSettings;
+    const walletAddress = await getWalletAddressByUserId(chatId);
+    const walletItem = await getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress});
+    const walletSettings = walletItem.walletSettings;
     
-    userSettings.gas = newGasSetting;
-    editItemInDynamoDB(userTable, { userId: chatId }, { userSettings: userSettings });
+    walletSettings.gas = newGasSetting;
+    editItemInDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress }, { walletSettings: walletSettings });
     
     const newSettingsKeyboard = {
         inline_keyboard: [

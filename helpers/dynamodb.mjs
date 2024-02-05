@@ -47,6 +47,21 @@ export async function editItemInDynamoDB(tableName, key, updates, checkExists = 
     }
 }
 
+// Delete an item from a DynamoDB table
+export async function deleteItemFromDynamoDB(tableName, key) {
+    const params = {
+        TableName: tableName,
+        Key: key
+    };
+
+    try {
+        await dynamoDB.delete(params).promise();
+    } catch (error) {
+        console.error('Error deleting item from DynamoDB:', error);
+        throw error;
+    }
+}
+
 // Update the user state in the user table
 export async function editUserState(userId, userState) {
     const userTable = process.env.USER_TABLE_NAME;
@@ -85,7 +100,7 @@ export async function getItemFromDynamoDB(tableName, key) {
         const data = await dynamoDB.get(params).promise();
         return data.Item;
     } catch (error) {
-        console.error('Error getting item from DynamoDB:', error);
+        console.error(`Error getting item from DynamoDB ${tableName} with key ${key}:`, error);
         throw error;
     }
 }

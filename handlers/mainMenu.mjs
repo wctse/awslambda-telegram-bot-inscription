@@ -15,6 +15,9 @@ export async function handleMainMenu(chatId) {
         inline_keyboard: [
             [
                 { text: "✍️ Mint", callback_data: "mint" },
+                { text: "📚 Multi-mint", callback_data: "multi_mint"}
+            ],
+            [
                 { text: "💸 Transfer", callback_data: "transfer" },
                 { text: "📝 Custom data", callback_data: "custom_data"}
             ],

@@ -4,29 +4,29 @@ import { handleMainMenu } from './mainMenu.mjs';
 
 export async function handleStart(chatId) {
     const userTable = process.env.USER_TABLE_NAME;
+    const processTable = process.env.PROCESS_TABLE_NAME;
     const userExists = await checkPartitionValueExistsInDynamoDB(userTable, `userId`, chatId );
 
     if (userExists) {
         await handleMainMenu(chatId);
         return;
+
     } else {
         const userItem = {
             userId: chatId,
             lastActiveAt: Date.now(),
             userState: "IDLE", // used to track flows that requires back-and-forth messaging with the user
-            userSettings: {
-                gas: "auto",
-            }
+            userSettings: {}
         };
-    
-        await addItemToDynamoDB(userTable, userItem);
 
         const processItem = {
             userId: chatId,
         };
-
-        const processTable = process.env.PROCESS_TABLE_NAME;
-        await addItemToDynamoDB(processTable, processItem);
+    
+        await Promise.all([
+            addItemToDynamoDB(userTable, userItem),
+            addItemToDynamoDB(processTable, processItem)
+        ]);
     }
     
     const keyboard = {

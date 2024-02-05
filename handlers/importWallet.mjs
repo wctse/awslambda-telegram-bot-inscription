@@ -71,6 +71,9 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
         encryptedPrivateKey: encryptedPrivateKey,
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
+        walletSettings: {
+            gas: "auto"
+        }
     };
 
     // Add the user's wallet to DynamoDB
