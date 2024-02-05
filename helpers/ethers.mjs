@@ -57,19 +57,20 @@ export async function sendTransaction(privateKey, data, to = null, gasSetting = 
 
     // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified, when gasSetting is not 'auto'
     const feeData = await provider.getFeeData();
+    const hexData = ethers.hexlify(ethers.toUtf8Bytes(data));
 
     const transaction = gasSetting === 'auto' ? 
     {
         to: to,
         value: ethers.parseEther('0.0'),
-        data: ethers.hexlify(ethers.toUtf8Bytes(data)),
+        data: hexData,
         maxFeePerGas: feeData.maxFeePerGas,
         maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
     } :
     {   
         to: to,
         value: ethers.parseEther('0.0'),
-        data: ethers.hexlify(ethers.toUtf8Bytes(data)),
+        data: hexData,
         maxFeePerGas: feeData.maxFeePerGas,
         maxPriorityFeePerGas: ethers.parseUnits(gasMapping[gasSetting], 'gwei'),
     };

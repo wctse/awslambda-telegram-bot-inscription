@@ -194,7 +194,7 @@ export async function handleMintConfirm(chatId) {
     const gasSetting = walletItem.walletSettings.gas;
 
     // Send the transaction to the blockchain
-    data = updateNonce(data);
+    data = await updateNonce(data);
 
     // TODO: Implement logic to change the 'to' address to non-zero for other token standards
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);

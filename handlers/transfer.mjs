@@ -23,8 +23,10 @@ export async function handleTransferInitiate(chatId) {
     // Check user balances to provide a list of tokens to transfer
     const userItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId); 
     const publicAddress = userItem[0].publicAddress;
-    const ethBalance = await getEthBalance(publicAddress);
-    const ierc20Balances = await getIerc20Balance(publicAddress);
+    const [ethBalance, ierc20Balances] = await Promise.all([
+        getEthBalance(publicAddress),
+        getIerc20Balance(publicAddress)
+    ]);
 
     const transferDescriptionMessage =
         "💸 The transfer feature transfers ownership of inscription tokens from this wallet to another. \n" +
@@ -55,7 +57,6 @@ export async function handleTransferInitiate(chatId) {
         };
 
         await bot.sendMessage(chatId, transferNoBalanceMessage, { reply_markup: transferNoBalanceKeyboard, parse_mode: 'Markdown' });
-        await editUserState(chatId, "TRANSFER_INITIATED");
         return;
     }
 
@@ -155,8 +156,15 @@ export async function handleTransferAmountInput(chatId, amount) {
         return;
     }
 
+    const [processItems, walletItems, currentGasPrice, ethPrice] = await Promise.all([
+        getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId),
+        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId),
+        getCurrentGasPrice(),
+        getEthPrice()
+    ]);
+
     // Generate the full inscription data
-    const processItem = (await getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId))[0];
+    const processItem = processItems[0];
     const ticker = processItem.transferTicker;
     const protocol = processItem.transferProtocol;
     const recipient = processItem.transferRecipient;
@@ -165,16 +173,15 @@ export async function handleTransferAmountInput(chatId, amount) {
     const data = `data:application/json,{"p":"${protocol}","op":"transfer","tick":"${ticker}","nonce":"${currentTime * 1000000}","to":[{"amt":"${amount}","recv":"${recipient}"}]}`;
 
     // Get wallet and network information
-    const walletItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
-    const publicAddress = walletItem[0].publicAddress;
-    const chainName = walletItem[0].chainName;
+    const walletItem = walletItems[0];
+    const publicAddress = walletItem.publicAddress;
+    const chainName = walletItem.chainName;
     const walletBalance = await getEthBalance(publicAddress);
 
     // TODO: Check whether the wallet has sufficient balance for the transfer when API is available
     
-    const currentGasPrice = await getCurrentGasPrice();
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
-    const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
+    const estimatedGasCostUsd = round(estimatedGasCost * ethPrice, 2);
 
     let transferReviewMessage =
         `⌛ Please review the transfer information below. \n` +
@@ -205,8 +212,11 @@ export async function handleTransferAmountInput(chatId, amount) {
         ]]
     };
 
-    await editItemInDynamoDB(processTable, { userId: chatId }, { transferData: data, transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice });
-    await editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED");
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { transferData: data, transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice }),
+        editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED")
+    ]);
+
     await bot.sendMessage(chatId, transferReviewMessage, { reply_markup: transferReviewKeyboard, parse_mode: 'Markdown' });
 }
 
@@ -216,9 +226,10 @@ export async function handleTransferAmountInput(chatId, amount) {
  * @param {number} chatId Telegram user ID
  */
 export async function handleTransferConfirm(chatId) {
-    const [processItems, walletItems] = await Promise.all([
+    const [processItems, walletItems, currentGasPrice] = await Promise.all([
         getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId),
-        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId)
+        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId),
+        getCurrentGasPrice()
     ])
 
     const processItem = processItems[0];
@@ -232,7 +243,6 @@ export async function handleTransferConfirm(chatId) {
         return;
     }
 
-    const currentGasPrice = await getCurrentGasPrice();
     const previousGasPrice = processItem.transferGasPrice;
 
     if (currentGasPrice > previousGasPrice * 1.1) {
@@ -244,11 +254,12 @@ export async function handleTransferConfirm(chatId) {
     const publicAddress = walletItem.publicAddress;
     const encryptedPrivateKey = walletItem.encryptedPrivateKey;
     const gasSetting = walletItem.walletSettings.gas;
-    const privateKey = await decrypt(encryptedPrivateKey);
 
     // Get the inscription
-    let data = processItem.transferData;
-    data = updateNonce(data);
+    let [data, privateKey] = await Promise.all([
+        updateNonce(processItem.transferData),
+        decrypt(encryptedPrivateKey)
+    ]);
 
     // Send the transaction
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
@@ -263,7 +274,7 @@ export async function handleTransferConfirm(chatId) {
     const amount = inscriptionData.to[0].amt;
     const recipient = inscriptionData.to[0].recv;
 
-    const addTransactionToDbPromise = addItemToDynamoDB(transactionTable, { 
+    const addTransactionItemToDynamoDBPromise = addItemToDynamoDB(transactionTable, { 
         userId: chatId,
         publicAddress: publicAddress,
         transactionHash: txHash,
@@ -274,6 +285,10 @@ export async function handleTransferConfirm(chatId) {
         transferAmount: amount,
         transferRecipient: recipient,
     });
+    
+    const editUserStatePromise = editUserState(chatId, "IDLE");
+
+    await Promise.all([addTransactionItemToDynamoDBPromise, editUserStatePromise]);
 
     // Send confirmation message to the user
     const url = 
@@ -294,11 +309,7 @@ export async function handleTransferConfirm(chatId) {
         ]]
     };
 
-    const sendMessagePromise = bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
-    await Promise.all([addTransactionToDbPromise, sendMessagePromise]);
-
-    // Clear the user state
-    await editUserState(chatId, "IDLE");
+    bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
 }
 
 /**

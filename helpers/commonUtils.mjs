@@ -32,7 +32,7 @@ export function chunkArray(array, chunkSize) {
  * @returns {str} Updated inscription data string 
 */
 
-export function updateNonce(data) {
+export async function updateNonce(data) {
     // Find the start and end of JSON 
     const jsonStartIndex = data.indexOf('{');
     const jsonEndIndex = data.lastIndexOf('}');
@@ -64,5 +64,6 @@ export function updateNonce(data) {
       throw new Error("Nonce field not found in JSON"); 
     }
   
-    return prefix + JSON.stringify(jsonObj);
+    const newData = prefix + JSON.stringify(jsonObj);
+    return newData;
 }
