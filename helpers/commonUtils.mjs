@@ -31,7 +31,6 @@ export function chunkArray(array, chunkSize) {
  * @param {str} data Inscription data string. Format: <prefix><json>
  * @returns {str} Updated inscription data string 
 */
-
 export async function updateNonce(data) {
     // Find the start and end of JSON 
     const jsonStartIndex = data.indexOf('{');

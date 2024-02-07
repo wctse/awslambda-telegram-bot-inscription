@@ -3,6 +3,7 @@ import { handleMintTickerInput, handleMintAmountInput } from '../handlers/mint.m
 import { handleImportWalletKeyInput } from '../handlers/importWallet.mjs';
 import { handleTransferTickerInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
 import { handleCustomDataInput } from '../handlers/customData.mjs';
+import { handleMultiMintAmountInput, handleMultiMintTickerInput, handleMultiMintTimesInput } from '../handlers/multiMint.mjs';
 
 export async function routeMessage(text, userState, chatId) {
     // Initialization of chat
@@ -14,8 +15,17 @@ export async function routeMessage(text, userState, chatId) {
         await handleMintTickerInput(chatId, text);
 
     // Amount input for mint
-    } else if (!Number.isNaN(text) && userState === 'MINT_TICKER_INPUTTED') {
+    } else if (userState === 'MINT_TICKER_INPUTTED') {
         await handleMintAmountInput(chatId, text);
+
+    } else if (userState === 'MULTI_MINT_PROTOCOL_INPUTTED') {
+        await handleMultiMintTickerInput(chatId, text);
+
+    } else if (userState === 'MULTI_MINT_TICKER_INPUTTED') {
+        await handleMultiMintAmountInput(chatId, text);
+
+    } else if (userState === 'MULTI_MINT_AMOUNT_INPUTTED') {
+        await handleMultiMintTimesInput(chatId, text);
 
     // Wallet address input for import wallet
     } else if (userState === 'IMPORT_WALLET_INITIATED') {

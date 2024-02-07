@@ -2,13 +2,18 @@ import { routeMessage } from './routers/message.mjs';
 import { routeCallback } from './routers/callback.mjs';
 import { deleteMessage } from './helpers/bot.mjs';
 import { editItemInDynamoDB, editUserState, getUserState } from './helpers/dynamoDB.mjs';
+import { routeInternalEvent } from './routers/internalEvent.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
     const update = JSON.parse(event.body);
     const userTable = process.env.USER_TABLE_NAME;
-    
-    if (update.message) {
+
+    if (update.source) {
+        await editItemInDynamoDB(userTable, { userId: update.customData.userId }, { lastActiveAt: Date.now() }, true);
+        await routeInternalEvent(update.source, update.message, update.customData);
+
+    } else if (update.message) {
         const message = update.message;
         const chatId = message.chat.id;
         const text = message.text;

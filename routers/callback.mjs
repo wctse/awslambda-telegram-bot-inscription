@@ -9,6 +9,7 @@ import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepeat } from "../handlers/customData.mjs";
 
 import { editUserState } from "../helpers/dynamoDB.mjs";
+import { handleMultiMintCancel, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
 
 export async function routeCallback(data, chatId, messageId) {
     // -- INITIALIZATION -- //
@@ -44,6 +45,11 @@ export async function routeCallback(data, chatId, messageId) {
     // Mint button
     else if (data === 'mint') {
         await handleMintInitiate(chatId);
+    }
+
+    // Multi-mint button
+    else if (data === 'multi_mint') {
+        await handleMultiMintInitiate(chatId);
     }
 
     // Transfer button
@@ -86,6 +92,41 @@ export async function routeCallback(data, chatId, messageId) {
     // Repeat in mint step 5
     else if (data === 'mint_repeat') {
         await handleMintRepeat(chatId);
+    }
+
+
+    // -- MULTI-MINT -- //
+    // Refresh in multi-mint step 1, multi-mint in progress condition
+    else if (data === 'multi_mint_refresh') {
+        await handleMultiMintInitiate(chatId);
+    }
+    // ierc20 in multi-mint step 1
+    else if (data === 'multi_mint_protocol_ierc-20') {
+        await handleMultiMintProtocolInput(chatId, 'ierc-20');
+    }
+
+    // 10 times in multi-mint step 4
+    else if (data === 'multi_mint_times_10') {
+        await handleMultiMintTimesInput(chatId, 10);
+    }
+
+    // 50 times in multi-mint step 4
+    else if (data === 'multi_mint_times_50') {
+        await handleMultiMintTimesInput(chatId, 50);
+    }
+
+    // 100 times in multi-mint step 4
+    else if (data === 'multi_mint_times_100') {
+        await handleMultiMintTimesInput(chatId, 100);
+    }
+
+    // Confirm in multi-mint step 5
+    else if (data === 'multi_mint_confirm') {
+        await handleMultiMintConfirm(chatId);
+    }
+
+    else if (data === 'multi_mint_cancel') {
+        await handleMultiMintCancel(chatId);
     }
 
     
