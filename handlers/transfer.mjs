@@ -1,7 +1,7 @@
 import { isHexString } from 'ethers';
-import { balanceCalculationMessage, bot, cancelMainMenuKeyboard } from '../helpers/bot.mjs';
+import { balanceCalculationMessage, bot, cancelMainMenuKeyboard, divider } from '../helpers/bot.mjs';
 import { chunkArray, round, updateNonce } from '../helpers/commonUtils.mjs';
-import { addItemToDynamoDB, editItemInDynamoDB, getItemFromDynamoDB, getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, editItemInDynamoDB, getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
 import { editUserState } from '../helpers/dynamoDB.mjs';
 import { getIerc20Balance } from '../helpers/ierc20.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
@@ -11,7 +11,6 @@ import config from '../config.json' assert { type: 'json' }; // Lambda IDE will 
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
-const userTable = process.env.USER_TABLE_NAME;
 const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
 /**
@@ -29,14 +28,17 @@ export async function handleTransferInitiate(chatId) {
     ]);
 
     const transferDescriptionMessage =
-        "💸 The transfer feature transfers ownership of inscription tokens from this wallet to another. \n" +
+        "💸 *Transfer*\n" +
+        "\n" +
+        "This feature transfers ownership of inscription tokens from this wallet to another. \n" +
+        divider +
         "\n"
 
     if (ethBalance == 0) {
         const noEthMessage = mintDescriptionMessage + 
             "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
         
-        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
+        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
     }
 

@@ -1,4 +1,4 @@
-import { bot, cancelMainMenuKeyboard, mainMenuKeyboard } from "../helpers/bot.mjs";
+import { bot, cancelMainMenuKeyboard, divider, mainMenuKeyboard } from "../helpers/bot.mjs";
 import { getEthPrice } from "../helpers/coingecko.mjs";
 import { round } from "../helpers/commonUtils.mjs";
 import { deleteItemFromDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getWalletAddressByUserId } from "../helpers/dynamoDB.mjs";
@@ -22,14 +22,17 @@ export async function handleMultiMintInitiate(chatId) {
     ]);
 
     const multiMintDescriptionMessage = 
-        "📚 The multi-mint feature mints new inscription tokens that was deployed for a set amount of times, once per block, saving precious time for you. \n" +
+        "📚 *Multi-mint*\n" +
+        "\n" +
+        "This feature mints new inscription tokens that was deployed for a set amount of times, once per block, saving precious time for you. \n" +
+        divider +
         "\n";
 
     if (ethBalance == 0) {
         const noEthMessage = multiMintDescriptionMessage + 
             "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
         
-        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
+        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown' });
         return;
     }
 
@@ -82,7 +85,7 @@ export async function handleMultiMintInitiate(chatId) {
     };
 
     await editUserState(chatId, 'MULTI_MINT_INITIATED');
-    await bot.sendMessage(chatId, multiMintProtocolInputMessage, { reply_markup: multiMintProtocolInputKeyboard });
+    await bot.sendMessage(chatId, multiMintProtocolInputMessage, { reply_markup: multiMintProtocolInputKeyboard, parse_mode: 'Markdown'});
 }
 
 

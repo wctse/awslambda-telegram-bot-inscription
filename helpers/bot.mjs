@@ -3,9 +3,11 @@ const token = process.env.TOKEN;
 
 export const bot = new TelegramBot(token);
 
+export const divider = `*=======================*\n`;
+
 export const balanceCalculationMessage =
     `\n\n` +
-    `*=======================*\n` +
+    divider +
     `⚠️ Note: Balances are calculated only from actions in this bot. The balances will be inaccurate if you used this address in other wallets.`;
 
 export const cancelMainMenuKeyboard = {

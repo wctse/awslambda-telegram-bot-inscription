@@ -1,4 +1,4 @@
-import { bot, mainMenuKeyboard } from "../helpers/bot.mjs";
+import { bot, divider, mainMenuKeyboard } from "../helpers/bot.mjs";
 import { addItemToDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getItemsByPartitionKeyFromDynamoDB, getWalletAddressByUserId } from "../helpers/dynamoDB.mjs";
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from "../helpers/ethers.mjs";
 import { decrypt } from "../helpers/kms.mjs";
@@ -8,7 +8,6 @@ import { getEthPrice } from "../helpers/coingecko.mjs";
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
-const userTable = process.env.USER_TABLE_NAME;
 const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
 export async function handleCustomDataInitiate(chatId) {
@@ -16,14 +15,17 @@ export async function handleCustomDataInitiate(chatId) {
     const ethBalance = await getEthBalance(publicAddress);
 
     const customDataDescriptionMessage = 
-        "📝 The custom data feature allows you to send transactions directly to the blockchain with any data. \n" +
+        "📝 *Custom data*\n" +
+        "\n" +
+        "This feature allows you to send transactions directly to the blockchain with any data. \n" +
+        divider +
         "\n";
 
     if (ethBalance == 0) {
         const noEthMessage = customDataDescriptionMessage + 
             "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
         
-        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
+        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
     }
     
@@ -39,7 +41,7 @@ export async function handleCustomDataInitiate(chatId) {
     };
 
     await editUserState(chatId, "CUSTOM_DATA_INITIATED");
-    await bot.sendMessage(chatId, customDataInputMessage, { reply_markup: customDataInputKeyboard });
+    await bot.sendMessage(chatId, customDataInputMessage, { reply_markup: customDataInputKeyboard, parse_mode: 'Markdown'});
 }
 
 export async function handleCustomDataInput(chatId, customData) {

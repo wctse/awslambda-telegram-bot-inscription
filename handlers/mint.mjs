@@ -1,4 +1,4 @@
-import { bot, mainMenuKeyboard, cancelMainMenuKeyboard } from '../helpers/bot.mjs';
+import { bot, mainMenuKeyboard, cancelMainMenuKeyboard, divider } from '../helpers/bot.mjs';
 import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB  } from '../helpers/dynamoDB.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
@@ -8,7 +8,6 @@ import config from '../config.json' assert { type: 'json' }; // Lambda IDE will 
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
-const userTable = process.env.USER_TABLE_NAME;
 const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
 /**
@@ -21,14 +20,17 @@ export async function handleMintInitiate(chatId) {
     const ethBalance = await getEthBalance(publicAddress);
 
     const mintDescriptionMessage = 
-        "✍️ The mint feature mints new inscription tokens that was deployed. \n" +
+        "✍️ *Mint*\n" +
+        "\n" +
+        "This feature mints new inscription tokens that was deployed. \n" +
+        divider +
         "\n"
 
     if (ethBalance == 0) {
         const noEthMessage = mintDescriptionMessage + 
             "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
         
-        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard });
+        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
     }
 
@@ -46,7 +48,7 @@ export async function handleMintInitiate(chatId) {
     };
 
     await editUserState(chatId, 'MINT_INITIATED');
-    await bot.sendMessage(chatId, mintProtocolInputMessage, { reply_markup: mintProtocolInputKeyboard });
+    await bot.sendMessage(chatId, mintProtocolInputMessage, { reply_markup: mintProtocolInputKeyboard, parse_mode: 'Markdown' });
 }
 
 /**
