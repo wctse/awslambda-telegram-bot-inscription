@@ -1,5 +1,5 @@
 import { bot, mainMenuKeyboard, cancelMainMenuKeyboard, divider } from '../helpers/bot.mjs';
-import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB  } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB, updateWalletLastActiveAt  } from '../helpers/dynamoDB.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
 import { round, updateNonce } from '../helpers/commonUtils.mjs';
@@ -200,6 +200,7 @@ export async function handleMintConfirm(chatId) {
 
     // TODO: Implement logic to change the 'to' address to non-zero for other token standards
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
+    await updateWalletLastActiveAt(chatId, walletAddress);
 
     const txHash = txResponse.hash;
     const txTimestamp = txResponse.timestamp;

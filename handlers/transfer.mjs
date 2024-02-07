@@ -1,7 +1,7 @@
 import { isHexString } from 'ethers';
 import { balanceCalculationMessage, bot, cancelMainMenuKeyboard, divider } from '../helpers/bot.mjs';
 import { chunkArray, round, updateNonce } from '../helpers/commonUtils.mjs';
-import { addItemToDynamoDB, editItemInDynamoDB, getItemsByPartitionKeyFromDynamoDB } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, editItemInDynamoDB, getItemsByPartitionKeyFromDynamoDB, updateWalletLastActiveAt } from '../helpers/dynamoDB.mjs';
 import { editUserState } from '../helpers/dynamoDB.mjs';
 import { getIerc20Balance } from '../helpers/ierc20.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
@@ -265,6 +265,7 @@ export async function handleTransferConfirm(chatId) {
 
     // Send the transaction
     const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
+    await updateWalletLastActiveAt(chatId, walletAddress);
     const txHash = txResponse.hash;
     const txTimestamp = txResponse.timestamp;
 
