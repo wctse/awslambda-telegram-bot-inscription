@@ -40,6 +40,7 @@ export async function handleCreateWallet(chatId) {
         encryptedPrivateKey: encryptedPrivateKey,
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
+        walletSource: "CREATED_IN_BOT",
         walletSettings: {
             gas: "auto"
         }

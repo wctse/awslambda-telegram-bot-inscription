@@ -71,6 +71,7 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
         encryptedPrivateKey: encryptedPrivateKey,
         createdAt: Date.now(),
         lastActiveAt: Date.now(),
+        walletSource: "IMPORTED_BY_USER",
         walletSettings: {
             gas: "auto"
         }
