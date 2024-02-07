@@ -66,7 +66,7 @@ export async function handleMintProtocolInput(chatId, protocol) {
         `\n` +
         `👇 Please input the token ticker.\n` +
         `\n` +
-        `📖 [You can search for existing tokens on ierc20.com.](https://www.ierc20.com/)`;
+        `📖 [You can search for existing tokens on ierc20.com.](https://app.ierc20.com/)`;
 
     await editUserState(chatId, 'MINT_PROTOCOL_INPUTTED');
     await bot.sendMessage(chatId, mintTokenInputMessage, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
@@ -87,7 +87,7 @@ export async function handleMintTickerInput(chatId, ticker) {
         `\n` +
         `👇 Please input the amount to mint. Do not exceed the minting limit.\n` +
         `\n` +
-        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://www.ierc20.com/tick/${ticker})`;
+        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
 
     await editUserState(chatId, 'MINT_TICKER_INPUTTED');
     await bot.sendMessage(chatId, mintAmountInputMessage, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });

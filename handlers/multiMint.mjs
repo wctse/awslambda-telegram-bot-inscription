@@ -104,7 +104,7 @@ export async function handleMultiMintProtocolInput(chatId, protocol) {
         `\n` +
         `👇 Please input the token ticker.\n` +
         `\n` +
-        `📖 [You can search for existing tokens on ierc20.com.](https://www.ierc20.com/)`;
+        `📖 [You can search for existing tokens on ierc20.com.](https://app.ierc20.com/)`;
 
     await editUserState(chatId, 'MULTI_MINT_PROTOCOL_INPUTTED');
     await bot.sendMessage(chatId, multiMintTokenInputMessage, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
@@ -125,7 +125,7 @@ export async function handleMultiMintTickerInput(chatId, ticker) {
         `\n` +
         `👇 Please input the amount to mint each time. Do not exceed the minting limit.\n` +
         `\n` +
-        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://www.ierc20.com/tick/${ticker})`;
+        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
 
     await editUserState(chatId, 'MULTI_MINT_TICKER_INPUTTED');
     await bot.sendMessage(chatId, multiMintAmountInputMessage, { reply_markup: cancelMainMenuKeyboard, parse_mode: 'Markdown' });
@@ -152,7 +152,7 @@ export async function handleMultiMintAmountInput(chatId, amount) {
         `\n` +
         `👇 Please input or choose the amount of times to mint. Be careful that tokens minted beyond the limit per address would be invalid.\n` +
         `\n` +
-        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://www.ierc20.com/tick/${ticker})`;
+        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
 
     const multiMintTimesInputKeyboard = {
         inline_keyboard: 
