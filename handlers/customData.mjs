@@ -53,7 +53,7 @@ export async function handleCustomDataInput(chatId, customData) {
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + customData.length * 16), 8);
     const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
 
-    let customDataConfirmMessage = 
+    let customDataReviewMessage = 
         `⌛ Please review the inscription information below. \n` +
         `\n` +
         `Wallet: \`${publicAddress}\`\n` +
@@ -65,10 +65,13 @@ export async function handleCustomDataInput(chatId, customData) {
     
     const ethBalance = await getEthBalance(publicAddress);
     if (ethBalance < estimatedGasCost) {
-        customDataConfirmMessage += "\n\n" +    
+        customDataReviewMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
             "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
     }
+
+    customDataReviewMessage += "\n\n" +
+        "☝️ Please confirm the information in 1 minute:";
 
     const customDataConfirmKeyboard = {
         inline_keyboard: [
@@ -83,7 +86,7 @@ export async function handleCustomDataInput(chatId, customData) {
     await editItemInDynamoDB(processTable, { userId: chatId }, { customDataData: customData, customDataReviewPromptedAt: currentTime, customDataGasPrice: currentGasPrice });
 
     await editUserState(chatId, 'CUSTOM_DATA_DATA_INPUTTED');
-    await bot.sendMessage(chatId, customDataConfirmMessage, { reply_markup: customDataConfirmKeyboard, parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, customDataReviewMessage, { reply_markup: customDataConfirmKeyboard, parse_mode: 'Markdown' });
 }
 
 export async function handleCustomDataConfirm(chatId) {
@@ -141,7 +144,8 @@ export async function handleCustomDataConfirm(chatId) {
         `⏳ Please wait for the transaction to be confirmed. This may take a few minutes.`;
 
     const transactionSentKeyboard = {
-        inline_keyboard: [[
+        inline_keyboard: [
+        [
             { text: "🔁 Repeat", callback_data: "custom_data_repeat" },
             { text: "🧘 Start over", callback_data: "custom_data" },
             { text: "💰 View wallet", callback_data: "view_wallet" },

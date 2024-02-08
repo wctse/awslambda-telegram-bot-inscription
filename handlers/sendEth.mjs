@@ -102,7 +102,7 @@ export async function handleSendEthAmountInput(chatId, amount) {
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000), 8); // in ETH; + 1 to account for the priority fees
     const estimatedGasCostUsd = round(estimatedGasCost * currentEthPrice, 2);
 
-    let sendEthConfirmationMessage = 
+    let sendEthReviewMessage = 
         `⌛ Please review the transaction information below. \n` +
         `\n` +
         `Wallet: \`${publicAddress}\`\n` +
@@ -114,12 +114,12 @@ export async function handleSendEthAmountInput(chatId, amount) {
         `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd })`;
 
     if (parseFloat(ethBalance) < estimatedGasCost + parseFloat(amount)) {
-        sendEthConfirmationMessage += "\n\n" +    
+        sendEthReviewMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
             "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
     }
 
-    sendEthConfirmationMessage += "\n\n" +
+    sendEthReviewMessage += "\n\n" +
         "☝️ Please confirm the information in 1 minute:";
 
     const sendEthConfirmationKeyboard = {
@@ -136,7 +136,7 @@ export async function handleSendEthAmountInput(chatId, amount) {
     await Promise.all([
         editItemInDynamoDB(processTable, { userId: chatId }, { sendEthAmount: amount, sendEthReviewPromptedAt: currentTime, sendEthGasPrice: currentGasPrice }),
         editUserState(chatId, "SEND_ETH_AMOUNT_INPUTTED"),
-        bot.sendMessage(chatId, sendEthConfirmationMessage, { reply_markup: sendEthConfirmationKeyboard, parse_mode: 'Markdown'})
+        bot.sendMessage(chatId, sendEthReviewMessage, { reply_markup: sendEthConfirmationKeyboard, parse_mode: 'Markdown'})
     ]);
 }
 
