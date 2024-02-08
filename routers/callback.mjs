@@ -10,6 +10,7 @@ import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepe
 
 import { editUserState } from "../helpers/dynamoDB.mjs";
 import { handleMultiMintCancel, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
+import { handleSendEthConfirm, handleSendEthInitiate } from "../handlers/sendEth.mjs";
 
 export async function routeCallback(data, chatId, messageId) {
     // -- INITIALIZATION -- //
@@ -60,6 +61,11 @@ export async function routeCallback(data, chatId, messageId) {
     // Custom data button
     else if (data === 'custom_data') {
         await handleCustomDataInitiate(chatId);
+    }
+
+    // Send ETH button
+    else if (data === 'send_eth') {
+        await handleSendEthInitiate(chatId);
     }
 
     // View wallet button
@@ -149,6 +155,11 @@ export async function routeCallback(data, chatId, messageId) {
 
     else if (data === 'custom_data_repeat') {
         await handleCustomDataRepeat(chatId);
+    }
+
+    // -- SEND ETH -- //
+    else if (data === 'send_eth_confirm') {
+        await handleSendEthConfirm(chatId);
     }
     
 

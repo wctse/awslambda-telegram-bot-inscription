@@ -47,7 +47,16 @@ export async function getCurrentGasPrice() {
     }
 }
 
-export async function sendTransaction(privateKey, data, to = null, gasSetting = 'auto') {
+/**
+ * Sends a transaction to the blockchain.
+ * @param {str} privateKey Private key of the wallet sending the transaction
+ * @param {str} data Inscription data in utf8 (normal text) format. Default is an empty string.
+ * @param {str} to Public address of the recipient. If null, the transaction will be sent to the wallet itself. Default is null.
+ * @param {str} gasSetting Gas setting for the transaction. Can be 'auto', 'high', 'medium', 'low', or a custom value in Gwei. Default is 'auto'.
+ * @param {num} amount Amount of ETH to send. Default is 0.
+ * @returns 
+ */
+export async function sendTransaction(privateKey, data = '', to = null, gasSetting = 'auto', amount = 0) {
     const wallet = new ethers.Wallet(privateKey, provider);
     if (!to) {
         to = wallet.address;
@@ -55,25 +64,16 @@ export async function sendTransaction(privateKey, data, to = null, gasSetting = 
         to = ZERO_ADDRESS;
     }
 
-    // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified, when gasSetting is not 'auto'
-    const feeData = await provider.getFeeData();
-    const hexData = ethers.hexlify(ethers.toUtf8Bytes(data));
+    const hexData = ethers.hexlify(ethers.toUtf8Bytes(data)); // Evaluates to '0x' if data is an empty string
+    const feeData = await provider.getFeeData(); // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified
 
-    const transaction = gasSetting === 'auto' ? 
-    {
+    let transaction = {
         to: to,
-        value: ethers.parseEther('0.0'),
+        value: ethers.parseEther(amount.toString()),
         data: hexData,
         maxFeePerGas: feeData.maxFeePerGas,
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
-    } :
-    {   
-        to: to,
-        value: ethers.parseEther('0.0'),
-        data: hexData,
-        maxFeePerGas: feeData.maxFeePerGas,
-        maxPriorityFeePerGas: ethers.parseUnits(gasMapping[gasSetting], 'gwei'),
-    };
+        maxPriorityFeePerGas: gasSetting === 'auto' ? feeData.maxPriorityFeePerGas : ethers.parseUnits(gasMapping[gasSetting], 'gwei')
+    }
     
     try {
         const txResponse = await wallet.sendTransaction(transaction);
