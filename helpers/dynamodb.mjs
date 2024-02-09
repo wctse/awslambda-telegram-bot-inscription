@@ -62,6 +62,31 @@ export async function deleteItemFromDynamoDB(tableName, key) {
     }
 }
 
+export async function deleteAttributesExceptKeys(tableName, key) {
+    const item = await getItemFromDynamoDB(tableName, key);
+
+    if (!item) {
+        console.warn(`Function deleteAttributesExceptKeys: Item with key ${JSON.stringify(key)} does not exist in table ${tableName}`);
+        return;
+    }
+
+    const attributesToRemove = Object.keys(item).filter(attr => !Object.keys(key).includes(attr));
+
+    if (attributesToRemove.length === 0) {
+        return;
+    }
+
+    const updateExpression = "REMOVE " + attributesToRemove.join(', ');
+
+    const params = {
+        TableName: tableName,
+        Key: key,
+        UpdateExpression: updateExpression
+    };
+
+    await dynamoDB.update(params).promise();
+}
+
 // Get an item from a DynamoDB table by its key
 export async function getItemFromDynamoDB(tableName, key) {
     const params = {
