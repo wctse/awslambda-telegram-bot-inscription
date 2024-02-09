@@ -9,7 +9,7 @@ import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepeat } from "../handlers/customData.mjs";
 
 import { editUserState } from "../helpers/dynamoDB.mjs";
-import { handleMultiMintCancel, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
+import { handleMultiMintStop, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
 import { handleSendEthConfirm, handleSendEthInitiate } from "../handlers/sendEth.mjs";
 
 export async function routeCallback(data, chatId, messageId) {
@@ -131,8 +131,8 @@ export async function routeCallback(data, chatId, messageId) {
         await handleMultiMintConfirm(chatId);
     }
 
-    else if (data === 'multi_mint_cancel') {
-        await handleMultiMintCancel(chatId);
+    else if (data === 'multi_mint_stop') {
+        await handleMultiMintStop(chatId);
     }
 
     

@@ -58,7 +58,7 @@ export async function handleMultiMintInitiate(chatId) {
         const multiMintInProgressKeyboard = {
             inline_keyboard: [
                 [
-                    { text: "❌ Cancel multi-mint", callback_data: "multi_mint_cancel" },
+                    { text: "❌ Stop current multi-mint", callback_data: "multi_mint_stop" },
                 ],
                 [
                     { text: "🔄 Refresh", callback_data: "multi_mint_refresh" },
@@ -265,16 +265,21 @@ export async function handleMultiMintConfirm(chatId) {
 }
 
 /**
- * Handle cancellation of the multi-mint
+ * Handle stopping of the multi-mint
  * 
  * @param {number} chatId 
  */
-export async function handleMultiMintCancel(chatId) {
+export async function handleMultiMintStop(chatId) {
     const publicAddress = await getWalletAddressByUserId(chatId);
     const [walletItem, multiMintItem] = await Promise.all([
         getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress }),
         getItemFromDynamoDB(multiMintTable, { userId: chatId, publicAddress: publicAddress })
     ]);
+
+    if (!multiMintItem) {
+        await bot.sendMessage(chatId, "⚠️ You don't have a multi-mint in progress.", { reply_markup: mainMenuKeyboard });
+        return;
+    }
 
     const { inscriptionData, timesMinted, timesToMint } = multiMintItem;
     const { p, tick, amt } = JSON.parse(inscriptionData.substring(22));
