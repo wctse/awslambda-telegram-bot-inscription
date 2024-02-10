@@ -6,7 +6,7 @@ import { handleCustomDataInput } from '../handlers/customData.mjs';
 import { handleMultiMintAmountInput, handleMultiMintTickerInput, handleMultiMintTimesInput } from '../handlers/multiMint.mjs';
 import { handleSendEthAmountInput, handleSendEthRecipientInput } from '../handlers/sendEth.mjs';
 
-export async function routeMessage(text, userState, chatId) {
+export async function routeMessage(chatId, text, userState) {
     // INITIALIZATION
     if (text === '/start') {
         await handleStart(chatId);

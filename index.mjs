@@ -25,7 +25,7 @@ export async function handler(event, context) {
 
         await Promise.all([
             editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true),
-            routeMessage(text, userState, chatId)
+            routeMessage(chatId, text, userState)
         ]);
         
     } else if (update.callback_query) {
@@ -33,15 +33,19 @@ export async function handler(event, context) {
         const chatId = callbackQuery.message.chat.id;
         const messageId = callbackQuery.message.message_id;
         const data = callbackQuery.data;
+        const userState = await getUserState(chatId);
 
         let callbackPromises = [
             editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }),
-            routeCallback(data, chatId, messageId)
         ];
 
+        let routeCallbackPromise = routeCallback(chatId, data, userState, messageId);
+
         if (data.includes('refresh')) {
-            callbackPromises.push(deleteMessage(chatId, messageId));
+            routeCallbackPromise = routeCallbackPromise.then(() => deleteMessage(chatId, messageId)); // Better UX if delete old message right after new message is sent
         }
+
+        callbackPromises.push(routeCallbackPromise);
 
         if (data.includes('cancel')) {
             callbackPromises.push(editUserState(chatId, 'IDLE'));

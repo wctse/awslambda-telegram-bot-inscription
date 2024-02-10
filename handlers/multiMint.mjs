@@ -36,6 +36,7 @@ export async function handleMultiMintInitiate(chatId) {
         return;
     }
 
+    // Multiple multi-mint progresses are not supported as they may conflict and be invalid
     if (multiMintItem) {
         const data = JSON.parse(multiMintItem.inscriptionData.slice(22));
         const protocol = data.p;
@@ -182,6 +183,10 @@ export async function handleMultiMintTimesInput(chatId, times) {
         return;
     }
     
+    else if (times > 100) {
+        await bot.sendMessage(chatId, "⚠️ The maximum multi-mint times is 100.");
+        return;
+    }
 
     const [publicAddress, processItem, currentGasPrice, ethPrice] = await Promise.all([
         getWalletAddressByUserId(chatId),

@@ -1,6 +1,6 @@
 import { bot } from '../helpers/bot.mjs';
 import { toProperCase } from '../helpers/commonUtils.mjs';
-import { editItemInDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId } from '../helpers/dynamoDB.mjs';
+import { editItemInDynamoDB, editUserState, getItemFromDynamoDB, getWalletAddressByUserId } from '../helpers/dynamoDB.mjs';
 
 const userTable = process.env.USER_TABLE_NAME;
 const walletTable = process.env.WALLET_TABLE_NAME;
@@ -30,6 +30,8 @@ export async function handleSettings(chatId) {
         ]
     };
     
+    await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
+    await editUserState(chatId, "SETTINGS")
     await bot.sendMessage(chatId, settingsMessage, { reply_markup: settingsKeyboard, parse_mode: 'Markdown' });
 }
 

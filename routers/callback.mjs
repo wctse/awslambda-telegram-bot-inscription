@@ -11,21 +11,22 @@ import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepe
 import { editUserState } from "../helpers/dynamoDB.mjs";
 import { handleMultiMintStop, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
 import { handleSendEthConfirm, handleSendEthInitiate } from "../handlers/sendEth.mjs";
+import { handleInvalidInput } from "../handlers/invalidInput.mjs";
 
-export async function routeCallback(data, chatId, messageId) {
+export async function routeCallback(chatId, data, userState, messageId) {
     // -- INITIALIZATION -- //
     // Create wallet in start
-    if (data === 'create_wallet') {
+    if (data === 'create_wallet' && userState === 'IDLE') {
         await handleCreateWallet(chatId);
     }
 
     // Import wallet in start
-    else if (data === 'import_wallet') {
+    else if (data === 'import_wallet' && userState === 'IDLE') {
         await handleImportWalletInitiate(chatId);
     }
 
     // Back to start in import wallet
-    else if (data === 'start') {
+    else if (data === 'start' && userState === 'IMPORT_WALLET_INITIATED') {
         await handleStart(chatId);
     }
 
@@ -38,157 +39,157 @@ export async function routeCallback(data, chatId, messageId) {
 
     // Cancel and main menu in multiple interfaces
     else if (data === 'cancel_main_menu') {
-        await editUserState(chatId, 'IDLE');
         await handleMainMenu(chatId);
     }
 
     // -- MAIN MENU -- //
     // Mint button
-    else if (data === 'mint') {
+    else if (data === 'mint' && userState === 'IDLE') {
         await handleMintInitiate(chatId);
     }
 
     // Multi-mint button
-    else if (data === 'multi_mint') {
+    else if (data === 'multi_mint' && userState === 'IDLE') {
         await handleMultiMintInitiate(chatId);
     }
 
     // Transfer button
-    else if (data === 'transfer') {
+    else if (data === 'transfer' && userState === 'IDLE') {
         await handleTransferInitiate(chatId);
     }
     
     // Custom data button
-    else if (data === 'custom_data') {
+    else if (data === 'custom_data' && userState === 'IDLE') {
         await handleCustomDataInitiate(chatId);
     }
 
     // Send ETH button
-    else if (data === 'send_eth') {
+    else if (data === 'send_eth' && userState === 'IDLE') {
         await handleSendEthInitiate(chatId);
     }
 
     // View wallet button
-    else if (data === 'view_wallet') {
+    else if (data === 'view_wallet' && userState === 'IDLE') {
         await handleViewWallet(chatId);
     }
 
     // Settings button
-    else if (data === 'settings') {
+    else if (data === 'settings' && userState === 'IDLE') {
         await handleSettings(chatId);
     }
 
     // Refresh button
-    else if (data === 'refresh_main_menu') {
+    else if (data === 'refresh_main_menu' && userState === 'IDLE') {
         await handleMainMenu(chatId);
     }
 
 
     // -- MINT -- //
     // ierc20 in mint step 1
-    else if (data === 'mint_protocol_ierc-20') {
+    else if (data === 'mint_protocol_ierc-20' && userState === 'MINT_INITIATED') {
         await handleMintProtocolInput(chatId, 'ierc-20');
     }
 
     // Confirm in mint step 4
-    else if (data === 'mint_confirm') {
+    else if (data === 'mint_confirm' && userState === 'MINT_AMOUNT_INPUTTED') {
         await handleMintConfirm(chatId);
     }
 
     // Repeat in mint step 5
-    else if (data === 'mint_repeat') {
+    else if (data === 'mint_repeat' && userState === 'IDLE') {
         await handleMintRepeat(chatId);
     }
 
 
     // -- MULTI-MINT -- //
     // Refresh in multi-mint step 1, multi-mint in progress condition
-    else if (data === 'multi_mint_refresh') {
+    else if (data === 'multi_mint_refresh' && userState === 'IDLE') {
         await handleMultiMintInitiate(chatId);
     }
     // ierc20 in multi-mint step 1
-    else if (data === 'multi_mint_protocol_ierc-20') {
+    else if (data === 'multi_mint_protocol_ierc-20' && userState === 'MULTI_MINT_INITIATED') {
         await handleMultiMintProtocolInput(chatId, 'ierc-20');
     }
 
     // 10 times in multi-mint step 4
-    else if (data === 'multi_mint_times_10') {
+    else if (data === 'multi_mint_times_10' && userState === 'MULTI_MINT_TICKER_INPUTTED') {
         await handleMultiMintTimesInput(chatId, 10);
     }
 
     // 50 times in multi-mint step 4
-    else if (data === 'multi_mint_times_50') {
+    else if (data === 'multi_mint_times_50' && userState === 'MULTI_MINT_TICKER_INPUTTED') {
         await handleMultiMintTimesInput(chatId, 50);
     }
 
     // 100 times in multi-mint step 4
-    else if (data === 'multi_mint_times_100') {
+    else if (data === 'multi_mint_times_100' && userState === 'MULTI_MINT_TICKER_INPUTTED') {
         await handleMultiMintTimesInput(chatId, 100);
     }
 
     // Confirm in multi-mint step 5
-    else if (data === 'multi_mint_confirm') {
+    else if (data === 'multi_mint_confirm' && userState === 'MULTI_MINT_TIMES_INPUTTED') {
         await handleMultiMintConfirm(chatId);
     }
 
-    else if (data === 'multi_mint_stop') {
+    else if (data === 'multi_mint_stop' && userState === 'IDLE') {
         await handleMultiMintStop(chatId);
     }
 
     
     // -- TRANSFER -- //
     // Ticker in transfer step 1
-    else if (data.startsWith('transfer_token_')) {
+    else if (data.startsWith('transfer_token_') && userState === 'TRANSFER_INITIATED') {
         const dataArray = data.split('_');
         await handleTransferTickerInput(chatId, dataArray[2], dataArray[3]);
     }
 
-    else if (data === 'transfer_confirm') {
+    else if (data === 'transfer_confirm' && userState === 'TRANSFER_AMOUNT_INPUTTED') {
         await handleTransferConfirm(chatId);
     }
 
     
     // -- CUSTOM DATA -- //
-    else if (data === 'custom_data_confirm') {
+    else if (data === 'custom_data_confirm' && userState === 'CUSTOM_DATA_DATA_INPUTTED') {
         await handleCustomDataConfirm(chatId);
     }
 
-    else if (data === 'custom_data_repeat') {
+    else if (data === 'custom_data_repeat' && userState === 'IDLE') {
         await handleCustomDataRepeat(chatId);
     }
 
     // -- SEND ETH -- //
-    else if (data === 'send_eth_confirm') {
+    else if (data === 'send_eth_confirm' && userState === 'SEND_ETH_AMOUNT_INPUTTED') {
         await handleSendEthConfirm(chatId);
     }
     
 
     // -- VIEW WALLET -- //
     // Refresh view wallet in view wallet
-    else if (data === 'refresh_view_wallet') {
+    else if (data === 'refresh_view_wallet' && userState === 'IDLE') {
         await handleViewWallet(chatId);
     }
 
 
     // -- SETTINGS -- //
-    else if (data === 'settings_gas_auto') {
+    else if (data === 'settings_gas_auto' && userState === 'SETTINGS') {
         await handleSettingsGas(chatId, messageId, 'auto');
     }
 
-    else if (data === 'settings_gas_low') {
+    else if (data === 'settings_gas_low' && userState === 'SETTINGS') {
         await handleSettingsGas(chatId, messageId, 'low');
     }
 
-    else if (data === 'settings_gas_medium') {
+    else if (data === 'settings_gas_medium' && userState === 'SETTINGS') {
         await handleSettingsGas(chatId, messageId, 'medium');
     }
 
-    else if (data === 'settings_gas_high') {
+    else if (data === 'settings_gas_high' && userState === 'SETTINGS') {
         await handleSettingsGas(chatId, messageId, 'high');
     }
 
     // Unknown data
     else {
         console.info('Unknown callback query received:', data);
+        await handleInvalidInput(chatId);
     }
 }

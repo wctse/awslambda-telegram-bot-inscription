@@ -1,6 +1,7 @@
 import { bot } from '../helpers/bot.mjs';
 import { getCurrentGasPrice } from '../helpers/ethers.mjs';
 import { round } from '../helpers/commonUtils.mjs';
+import { editUserState } from '../helpers/dynamoDB.mjs';
 
 export async function handleMainMenu(chatId) {
     const currentGasPrice = round(await getCurrentGasPrice(), 4);
@@ -32,5 +33,6 @@ export async function handleMainMenu(chatId) {
         ]
     };
 
+    await editUserState(chatId, "IDLE");
     await bot.sendMessage(chatId, mainMenuMessage, { reply_markup: mainMenuKeyboard });
 }
