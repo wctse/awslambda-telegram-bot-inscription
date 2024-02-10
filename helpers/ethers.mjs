@@ -65,14 +65,25 @@ export async function sendTransaction(privateKey, data = '', to = null, gasSetti
     }
 
     const hexData = ethers.hexlify(ethers.toUtf8Bytes(data)); // Evaluates to '0x' if data is an empty string
-    const feeData = await provider.getFeeData(); // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified
+    let maxFeePerGas = (await provider.getFeeData()).maxFeePerGas; // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified
 
-    let transaction = {
+    let customPriorityFeePerGas;
+
+    if (gasSetting != 'auto') {
+        customPriorityFeePerGas = ethers.parseUnits(gasMapping[gasSetting], 'gwei');
+        if (customPriorityFeePerGas > maxFeePerGas) {
+            maxFeePerGas = customPriorityFeePerGas;
+        }
+    }
+
+    console.debug(customPriorityFeePerGas, maxFeePerGas, gasSetting, gasMapping[gasSetting])
+
+    const transaction = {
         to: to,
         value: ethers.parseEther(amount.toString()),
         data: hexData,
-        maxFeePerGas: feeData.maxFeePerGas,
-        maxPriorityFeePerGas: gasSetting === 'auto' ? feeData.maxPriorityFeePerGas : ethers.parseUnits(gasMapping[gasSetting], 'gwei')
+        maxFeePerGas: maxFeePerGas,
+        maxPriorityFeePerGas: gasSetting === 'auto' ? feeData.maxPriorityFeePerGas : customPriorityFeePerGas
     }
     
     try {
