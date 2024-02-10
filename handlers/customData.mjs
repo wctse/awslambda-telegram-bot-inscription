@@ -5,6 +5,7 @@ import { decrypt } from "../helpers/kms.mjs";
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 import { round } from "../helpers/commonUtils.mjs";
 import { getEthPrice } from "../helpers/coingecko.mjs";
+import { hexlify, toUtf8Bytes } from 'ethers';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
@@ -59,6 +60,7 @@ export async function handleCustomDataInput(chatId, customData) {
         `Wallet: \`${publicAddress}\`\n` +
         `Chain: \`${chainName}\`\n` +
         `Data: \`${customData}\`\n` +
+        `Hex data: \`${hexlify(toUtf8Bytes(customData))}\`\n` +
         `\n` +
         `Current Gas Price: ${currentGasPrice} Gwei\n` +
         `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd })`;
