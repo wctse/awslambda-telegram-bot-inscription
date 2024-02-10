@@ -291,14 +291,14 @@ async function handleMintReviewRetry(chatId, retryReason) {
 
     // Parallelize the sendMessage operation (if there's a message to send) and the retrieval & processing of item from DynamoDB
     const sendMessagePromise = message ? bot.sendMessage(chatId, message) : Promise.resolve();
-    const retryMintInputPromise = getItemFromDynamoDB(processTable, { userId: chatId })
+    const retryMintAmountInputPromise = getItemFromDynamoDB(processTable, { userId: chatId })
         .then(processItem => {
             const amount = processItem.mintAmount;
             return handleMintAmountInput(chatId, amount);
         });
 
     // Use Promise.all to wait for both operations
-    await Promise.all([sendMessagePromise, retryMintInputPromise]);
+    await Promise.all([sendMessagePromise, retryMintAmountInputPromise]);
 }
 
 /**
