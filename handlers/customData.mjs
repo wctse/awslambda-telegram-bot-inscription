@@ -41,18 +41,26 @@ export async function handleCustomDataInitiate(chatId) {
         ]
     };
 
-    await editUserState(chatId, "CUSTOM_DATA_INITIATED");
-    await bot.sendMessage(chatId, customDataInputMessage, { reply_markup: customDataInputKeyboard, parse_mode: 'Markdown'});
+    await Promise.all([
+        editUserState(chatId, "CUSTOM_DATA_INITIATED"),
+        bot.sendMessage(chatId, customDataInputMessage, { reply_markup: customDataInputKeyboard, parse_mode: 'Markdown'})
+    ]);
 }
 
 export async function handleCustomDataInput(chatId, customData) {
-    const walletItem = (await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId))[0];
-    const publicAddress = walletItem.publicAddress;
-    const chainName = walletItem.chainName;
+    const publicAddress = await getWalletAddressByUserId(chatId);
+    const [walletItem, currentGasPrice, currentEthPrice, ethBalance] = await Promise.all([
+        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress}),
+        getCurrentGasPrice(),
+        getEthPrice(),
+        getEthBalance(publicAddress)
+    ]);
 
-    const currentGasPrice = await getCurrentGasPrice();
+    const chainName = walletItem.chainName;
+    const hexData = hexlify(toUtf8Bytes(customData))
+
     const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + customData.length * 16), 8);
-    const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
+    const estimatedGasCostUsd = round(estimatedGasCost * currentEthPrice, 2);
 
     let customDataReviewMessage = 
         `⌛ Please review the inscription information below. \n` +
@@ -60,12 +68,11 @@ export async function handleCustomDataInput(chatId, customData) {
         `Wallet: \`${publicAddress}\`\n` +
         `Chain: \`${chainName}\`\n` +
         `Data: \`${customData}\`\n` +
-        `Hex data: \`${hexlify(toUtf8Bytes(customData))}\`\n` +
+        `Hex data: \`${hexData}\`\n` +
         `\n` +
         `Current Gas Price: ${currentGasPrice} Gwei\n` +
         `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd })`;
     
-    const ethBalance = await getEthBalance(publicAddress);
     if (ethBalance < estimatedGasCost) {
         customDataReviewMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
@@ -85,17 +92,22 @@ export async function handleCustomDataInput(chatId, customData) {
     };
 
     const currentTime = Date.now();
-    await editItemInDynamoDB(processTable, { userId: chatId }, { customDataData: customData, customDataReviewPromptedAt: currentTime, customDataGasPrice: currentGasPrice });
-
-    await editUserState(chatId, 'CUSTOM_DATA_DATA_INPUTTED');
-    await bot.sendMessage(chatId, customDataReviewMessage, { reply_markup: customDataConfirmKeyboard, parse_mode: 'Markdown' });
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { customDataData: customData, customDataReviewPromptedAt: currentTime, customDataGasPrice: currentGasPrice }),
+        editUserState(chatId, 'CUSTOM_DATA_DATA_INPUTTED'),
+        bot.sendMessage(chatId, customDataReviewMessage, { reply_markup: customDataConfirmKeyboard, parse_mode: 'Markdown' })
+    ]);
 }
 
 export async function handleCustomDataConfirm(chatId) {
     const walletAddress = await getWalletAddressByUserId(chatId);
-    const walletItem = await getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress});
-    
-    const processItem = await getItemFromDynamoDB(processTable, { userId: chatId });
+
+    const [walletItem, processItem, currentGasPrice] = await Promise.all([
+        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress}),
+        getItemFromDynamoDB(processTable, { userId: chatId }),
+        getCurrentGasPrice()
+    ]);
+
     const data = processItem.customDataData;
 
     // Check for time elapsed, if more than 1 minute, go back to step 4 and prompt the user again to confirm
@@ -105,9 +117,7 @@ export async function handleCustomDataConfirm(chatId) {
     }
 
     // Check for current gas prices. If the gas price is at least 10% more expensive, go back to step 4 and prompt the user again to confirm
-    const currentGasPrice = await getCurrentGasPrice();
     const previousGasPrice = processItem.customDataGasPrice;
-
     if (currentGasPrice > previousGasPrice * 1.1) {
         await handleCustomDataRetry(chatId, 'expensive_gas');
         return;
@@ -117,13 +127,15 @@ export async function handleCustomDataConfirm(chatId) {
     const privateKey = await decrypt(encryptedPrivateKey);
     const gasSetting = walletItem.walletSettings.gas;
 
-    const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
-    await updateWalletLastActiveAt(chatId, walletAddress);
+    const [txResponse] = await Promise.all([
+        sendTransaction(privateKey, data, 'zero', gasSetting),
+        updateWalletLastActiveAt(chatId, walletAddress)
+    ]);
 
     const txHash = txResponse.hash;
     const txTimestamp = txResponse.timestamp;
 
-    await addItemToDynamoDB(transactionTable, { 
+    const addTransactionItemPromise = addItemToDynamoDB(transactionTable, { 
         userId: chatId,
         publicAddress: walletAddress,
         transactionHash: txHash,
@@ -157,8 +169,10 @@ export async function handleCustomDataConfirm(chatId) {
         ]]
     };
 
-    await bot.sendMessage(chatId, transactionSentMessage, { parse_mode: 'Markdown', reply_markup: transactionSentKeyboard });
-    await editUserState(chatId, 'IDLE');
+    const sendMessagePromise = bot.sendMessage(chatId, transactionSentMessage, { parse_mode: 'Markdown', reply_markup: transactionSentKeyboard });
+    const editUserStatePromise = editUserState(chatId, 'IDLE');
+
+    await Promise.all([addTransactionItemPromise, sendMessagePromise, editUserStatePromise]);
 }
 
 export async function handleCustomDataRetry(chatId, retryReason) {
