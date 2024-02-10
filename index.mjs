@@ -12,8 +12,10 @@ export async function handler(event, context) {
     const processTable = process.env.PROCESS_TABLE_NAME;
 
     if (update.source) {
-        await editItemInDynamoDB(userTable, { userId: update.customData.userId }, { lastActiveAt: Date.now() }, true);
-        await routeInternalEvent(update.source, update.message, update.customData);
+        await Promise.all([
+            editItemInDynamoDB(userTable, { userId: update.customData.userId }, { lastActiveAt: Date.now() }, true),
+            routeInternalEvent(update.source, update.message, update.customData)
+        ]);
 
     } else if (update.message) {
         const message = update.message;
@@ -21,8 +23,10 @@ export async function handler(event, context) {
         const text = message.text;
         const userState = await getUserState(chatId);
 
-        await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true);
-        await routeMessage(text, userState, chatId);
+        await Promise.all([
+            editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true),
+            routeMessage(text, userState, chatId)
+        ]);
         
     } else if (update.callback_query) {
         const callbackQuery = update.callback_query;
@@ -30,17 +34,21 @@ export async function handler(event, context) {
         const messageId = callbackQuery.message.message_id;
         const data = callbackQuery.data;
 
-        await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
-        await routeCallback(data, chatId, messageId);
+        let callbackPromises = [
+            editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }),
+            routeCallback(data, chatId, messageId)
+        ];
 
         if (data.includes('refresh')) {
-            await deleteMessage(chatId, messageId);
+            callbackPromises.push(deleteMessage(chatId, messageId));
         }
 
         if (data.includes('cancel')) {
-            await editUserState(chatId, 'IDLE');
-            await deleteAttributesExceptKeys(processTable, { userId: chatId });
+            callbackPromises.push(editUserState(chatId, 'IDLE'));
+            callbackPromises.push(deleteAttributesExceptKeys(processTable, { userId: chatId }));
         }
+
+        await Promise.all(callbackPromises);
     }
 
     else {console.info('Unknown update received:', update)}
