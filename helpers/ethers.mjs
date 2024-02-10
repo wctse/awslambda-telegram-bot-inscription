@@ -76,8 +76,6 @@ export async function sendTransaction(privateKey, data = '', to = null, gasSetti
         }
     }
 
-    console.debug(customPriorityFeePerGas, maxFeePerGas, gasSetting, gasMapping[gasSetting])
-
     const transaction = {
         to: to,
         value: ethers.parseEther(amount.toString()),
