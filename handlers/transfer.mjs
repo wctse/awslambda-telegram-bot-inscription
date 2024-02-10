@@ -1,7 +1,7 @@
 import { isHexString } from 'ethers';
 import { balanceCalculationMessage, bot, cancelMainMenuKeyboard, divider } from '../helpers/bot.mjs';
 import { chunkArray, round, updateNonce } from '../helpers/commonUtils.mjs';
-import { addItemToDynamoDB, editItemInDynamoDB, getItemsByPartitionKeyFromDynamoDB, updateWalletLastActiveAt } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, editItemInDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, updateWalletLastActiveAt } from '../helpers/dynamoDB.mjs';
 import { editUserState } from '../helpers/dynamoDB.mjs';
 import { getIerc20Balance } from '../helpers/ierc20.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
@@ -20,8 +20,8 @@ const transactionTable = process.env.TRANSACTION_TABLE_NAME;
  */
 export async function handleTransferInitiate(chatId) {
     // Check user balances to provide a list of tokens to transfer
-    const userItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId); 
-    const publicAddress = userItem[0].publicAddress;
+    const publicAddress = await getWalletAddressByUserId(chatId);
+
     const [ethBalance, ierc20Balances] = await Promise.all([
         getEthBalance(publicAddress),
         getIerc20Balance(publicAddress)
@@ -63,7 +63,7 @@ export async function handleTransferInitiate(chatId) {
     }
 
     const ierc20Tickers = Object.keys(ierc20Balances);
-    const ierc20TickersChunks = chunkArray(ierc20Tickers, 4);
+    const ierc20TickersChunks = chunkArray(ierc20Tickers, 3, true, '-');
 
     const transferTokenInputMessage = transferDescriptionMessage +
         `🔑 Please select the token you want to transfer.\n` +
@@ -83,15 +83,20 @@ export async function handleTransferInitiate(chatId) {
         inline_keyboard: [
             ...ierc20TickersChunks.map(chunk => {
                 return chunk.map(ticker => {
-                    return { text: ticker + " (ierc-20)", callback_data: 'transfer_token_' + ticker + '_ierc-20' };
+                    return {
+                        text: ticker != '-' ? ticker + " (ierc-20)" : ticker,
+                        callback_data: ticker != '-' ? 'transfer_token_' + ticker + '_ierc-20' : 'null'
+                    };
                 });
             }),
             [{ text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }]
         ]
     };
 
-    await editUserState(chatId, "TRANSFER_INITIATED");
-    await bot.sendMessage(chatId, transferTokenInputMessage, { reply_markup: transferTokenInputKeyboard, parse_mode: 'Markdown' });
+    await Promise.all([
+        editUserState(chatId, "TRANSFER_INITIATED"),
+        bot.sendMessage(chatId, transferTokenInputMessage, { reply_markup: transferTokenInputKeyboard, parse_mode: 'Markdown' })
+    ]);
 }
 
 /**
@@ -113,9 +118,11 @@ export async function handleTransferTickerInput(chatId, ticker, protocol) {
         ]]
     };
 
-    await editItemInDynamoDB(processTable, { userId: chatId }, { transferTicker: ticker, transferProtocol: protocol } );
-    await editUserState(chatId, "TRANSFER_TOKEN_INPUTTED");
-    await bot.sendMessage(chatId, transferRecipientInputMessage, { reply_markup: transferRecipientInputKeyboard, parse_mode: 'Markdown' });
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { transferTicker: ticker, transferProtocol: protocol }),
+        editUserState(chatId, "TRANSFER_TOKEN_INPUTTED"),
+        bot.sendMessage(chatId, transferRecipientInputMessage, { reply_markup: transferRecipientInputKeyboard, parse_mode: 'Markdown' })
+    ]);
 }
 
 /**
@@ -141,9 +148,11 @@ export async function handleTransferRecipientInput(chatId, recipient) {
         ]]
     };
 
-    await editItemInDynamoDB(processTable, { userId: chatId }, { transferRecipient: recipient });
-    await editUserState(chatId, "TRANSFER_RECIPIENT_INPUTTED");
-    await bot.sendMessage(chatId, transferAmountInputMessage, { reply_markup: transferAmountInputKeyboard, parse_mode: 'Markdown' });
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { transferRecipient: recipient }),
+        editUserState(chatId, "TRANSFER_RECIPIENT_INPUTTED"),
+        bot.sendMessage(chatId, transferAmountInputMessage, { reply_markup: transferAmountInputKeyboard, parse_mode: 'Markdown' })
+    ]);
 }
 
 /**
@@ -158,32 +167,32 @@ export async function handleTransferAmountInput(chatId, amount) {
         return;
     }
 
-    const [processItems, walletItems, currentGasPrice, ethPrice] = await Promise.all([
-        getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId),
-        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId),
+    const publicAddress = await getWalletAddressByUserId(chatId);
+
+    const [walletItem, processItem, currentGasPrice, currentEthPrice, ethBalance] = await Promise.all([
+        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress }),
+        getItemFromDynamoDB(processTable, { userId: chatId }),
         getCurrentGasPrice(),
-        getEthPrice()
+        getEthPrice(),
+        getEthBalance(publicAddress)
     ]);
 
     // Generate the full inscription data
-    const processItem = processItems[0];
     const ticker = processItem.transferTicker;
     const protocol = processItem.transferProtocol;
     const recipient = processItem.transferRecipient;
     const currentTime = Date.now();
 
-    const data = `data:application/json,{"p":"${protocol}","op":"transfer","tick":"${ticker}","nonce":"${currentTime * 1000000}","to":[{"amt":"${amount}","recv":"${recipient}"}]}`;
+    const data = `data:application/json,{"p":"${protocol}","op":"transfer","tick":"${ticker}","nonce":"","to":[{"amt":"${amount}","recv":"${recipient}"}]}`;
+    const updatedData = await updateNonce(data);
 
     // Get wallet and network information
-    const walletItem = walletItems[0];
-    const publicAddress = walletItem.publicAddress;
     const chainName = walletItem.chainName;
-    const walletBalance = await getEthBalance(publicAddress);
 
     // TODO: Check whether the wallet has sufficient balance for the transfer when API is available
     
-    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
-    const estimatedGasCostUsd = round(estimatedGasCost * ethPrice, 2);
+    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + updatedData.length * 16), 8); // in ETH; + 1 to account for the priority fees
+    const estimatedGasCostUsd = round(estimatedGasCost * currentEthPrice, 2);
 
     let transferReviewMessage =
         `⌛ Please review the transfer information below. \n` +
@@ -198,7 +207,7 @@ export async function handleTransferAmountInput(chatId, amount) {
         `Current Gas Price: ${currentGasPrice} Gwei\n` +
         `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
 
-    if (walletBalance < estimatedGasCost) {
+    if (ethBalance < estimatedGasCost) {
         transferReviewMessage += "\n\n" +    
             "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
             "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
@@ -215,11 +224,10 @@ export async function handleTransferAmountInput(chatId, amount) {
     };
 
     await Promise.all([
-        editItemInDynamoDB(processTable, { userId: chatId }, { transferData: data, transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice }),
-        editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED")
+        editItemInDynamoDB(processTable, { userId: chatId }, { transferData: updatedData, transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice }),
+        editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED"),
+        bot.sendMessage(chatId, transferReviewMessage, { reply_markup: transferReviewKeyboard, parse_mode: 'Markdown' })
     ]);
-
-    await bot.sendMessage(chatId, transferReviewMessage, { reply_markup: transferReviewKeyboard, parse_mode: 'Markdown' });
 }
 
 /**
@@ -228,14 +236,13 @@ export async function handleTransferAmountInput(chatId, amount) {
  * @param {number} chatId Telegram user ID
  */
 export async function handleTransferConfirm(chatId) {
-    const [processItems, walletItems, currentGasPrice] = await Promise.all([
-        getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId),
-        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId),
+    const publicAddress = await getWalletAddressByUserId(chatId);
+
+    const [processItem, walletItem, currentGasPrice] = await Promise.all([
+        getItemFromDynamoDB(processTable, { userId: chatId }),
+        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress}),
         getCurrentGasPrice()
     ])
-
-    const processItem = processItems[0];
-    const walletItem = walletItems[0];
 
     const promptedAt = processItem.transferReviewPromptedAt;
 
@@ -253,24 +260,25 @@ export async function handleTransferConfirm(chatId) {
     }
 
     // Get information of the user's wallet for transaction
-    const publicAddress = walletItem.publicAddress;
-    const encryptedPrivateKey = walletItem.encryptedPrivateKey;
     const gasSetting = walletItem.walletSettings.gas;
 
     // Get the inscription
-    let [data, privateKey] = await Promise.all([
+    const [updatedData, privateKey] = await Promise.all([
         updateNonce(processItem.transferData),
-        decrypt(encryptedPrivateKey)
+        decrypt(walletItem.encryptedPrivateKey)
     ]);
 
     // Send the transaction
-    const txResponse = await sendTransaction(privateKey, data, 'zero', gasSetting);
-    await updateWalletLastActiveAt(chatId, walletAddress);
+    const [txResponse] = await Promise.all([
+        sendTransaction(privateKey, updatedData, 'zero', gasSetting),
+        updateWalletLastActiveAt(chatId, publicAddress)
+    ]);
+
     const txHash = txResponse.hash;
     const txTimestamp = txResponse.timestamp;
 
     // Reconstruct the components of the transfer from the inscription data
-    const inscriptionData = JSON.parse(data.substring(22));
+    const inscriptionData = JSON.parse(updatedData.substring(22));
 
     const protocol = inscriptionData.p;
     const ticker = inscriptionData.tick;
@@ -288,10 +296,6 @@ export async function handleTransferConfirm(chatId) {
         transferAmount: amount,
         transferRecipient: recipient,
     });
-    
-    const editUserStatePromise = editUserState(chatId, "IDLE");
-
-    await Promise.all([addTransactionItemToDynamoDBPromise, editUserStatePromise]);
 
     // Send confirmation message to the user
     const url = 
@@ -312,7 +316,10 @@ export async function handleTransferConfirm(chatId) {
         ]]
     };
 
-    bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
+    const editUserStatePromise = editUserState(chatId, "IDLE");
+    const sendMessagePromise = bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
+    
+    await Promise.all([addTransactionItemToDynamoDBPromise, editUserStatePromise, sendMessagePromise]);
 }
 
 /**
@@ -322,69 +329,30 @@ export async function handleTransferConfirm(chatId) {
  * @param {str} retryReason Reason for transfer confirmation retry. Expected values: 'timeout', 'expensive_gas'.
  */
 export async function handleTransferReviewRetry(chatId, retryReason) {
-    if (retryReason === 'timeout') {
-        await bot.sendMessage(chatId, "⌛ The inscription process has timed out. Please reconfirm:");
+    let message;
+
+    if (retryReason === 'repeat_mint') {
+        message = null; // Don't need to do anything here as there is nothing going wrong to let the user know
+
+    } else if (retryReason === 'timeout') {
+        message = "⌛ The transfer process has timed out. Please reconfirm:";
 
     } else if (retryReason === 'expensive_gas') {
-        await bot.sendMessage(chatId, "⌛ The gas price increased a lot. Please reconfirm:");
-
+        message = "⌛ The gas price increased a lot. Please reconfirm:";
+        
     } else {
         console.warn('Unknown reason for transfer confirmation retry: ', retryReason);
+        message = null; // No message to send for unknown reasons or 'repeat_mint'
     }
 
-    const processItem = (await getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId))[0];
-    const data = processItem.transferData;
+    // Parallelize the sendMessage operation (if there's a message to send) and the retrieval & processing of item from DynamoDB
+    const sendMessagePromise = message ? bot.sendMessage(chatId, message) : Promise.resolve();
+    const retryTransferAmountInputPromise = getItemFromDynamoDB(processTable, { userId: chatId })
+        .then(processItem => {
+            const amount = processItem.transferAmount;
+            return handleTransferAmountInput(chatId, amount);
+        });
 
-    // Reconstruct the components of the transfer from the inscription data
-    const inscriptionData = JSON.parse(data.substring(22));
-
-    const protocol = inscriptionData.p;
-    const ticker = inscriptionData.tick;
-    const amount = inscriptionData.to[0].amt;
-    const recipient = inscriptionData.to[0].recv;
-
-    // Get wallet and network information
-    const walletItem = await getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId);
-    const publicAddress = walletItem[0].publicAddress;
-    const chainName = walletItem[0].chainName;
-    const ethBalance = await getEthBalance(publicAddress);
-    
-    const currentGasPrice = await getCurrentGasPrice();
-    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
-    const estimatedGasCostUsd = round(estimatedGasCost * await getEthPrice(), 2);
-
-    let transferSentMessage =
-        `⌛ Please review the transfer information below. \n` +
-        `\n` +
-        `Wallet: \`${publicAddress}\`\n` +
-        `Chain: \`${chainName}\`\n` +
-        `Recipient: \`${recipient}\`\n` +
-        `Protocol: \`${protocol}\`\n` +
-        `Ticker: \`${ticker}\`\n` +
-        `Amount: \`${amount}\`\n` +
-        `\n` +
-        `Current Gas Price: ${currentGasPrice} Gwei\n` +
-        `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
-
-    if (ethBalance < estimatedGasCost) {
-        transferSentMessage += "\n\n" +    
-            "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
-            "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
-    }
-
-    transferSentMessage += "\n\n" +
-        "☝️ Please confirm the information in 1 minute:";
-
-    const transferSentKeyboard = {
-        inline_keyboard: [[
-            { text: "✅ Confirm", callback_data: "transfer_confirm" },
-            { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
-        ]]
-    };
-
-    const currentTime = Date.now();
-
-    await editItemInDynamoDB(processTable, { userId: chatId }, { transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice });
-    await editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED");
-    await bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
+    // Use Promise.all to wait for both operations
+    await Promise.all([sendMessagePromise, retryTransferAmountInputPromise]);
 }

@@ -12,14 +12,28 @@ export function toProperCase(string) {
 
 /**
  * Chunks an array into smaller arrays of a specified size
+ * Example usage:
+ * const chunkedArray = chunkArray([1, 2, 3, 4, 5, 6, 7, 8], 3, true, '-');
+ * console.log(chunkedArray); // [[1, 2, 3], [4, 5, 6], [7, 8, '-']]
+ * 
  * @param {Array} array - The array to be chunked
  * @param {number} chunkSize - The size of the chunks
+ * @param {boolean} padLastChunk - Whether to pad the last chunk with nulls to match the chunkSize
+ * @param {any} pad - The value to pad the last chunk with
  * @returns {Array} - An array of sub-array (chunks) of the specific chunkSize
  */
-export function chunkArray(array, chunkSize) {
+export function chunkArray(array, chunkSize, padLastChunk = false, pad = null) {
     const chunkedArr = [];
     for (let i = 0; i < array.length; i += chunkSize) {
-        chunkedArr.push(array.slice(i, i + chunkSize));
+        const chunk = array.slice(i, i + chunkSize)
+
+        if (padLastChunk) {
+          while (chunk.length < chunkSize) {
+              chunk.push(pad);
+          }
+        }
+
+        chunkedArr.push(chunk);
     }
     return chunkedArr;
 }
