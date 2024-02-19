@@ -1,4 +1,4 @@
-import { getItemsByPartitionKeyFromDynamoDB } from "./dynamoDB.mjs";
+import { getItemsFromDynamoDb } from "./dynamoDB.mjs";
 
 export function calculateIerc20Balance(transactions) {
     const mintTx = transactions.filter(tx => tx.txType === 'mint' && tx.mintProtocol === 'ierc-20');
@@ -38,7 +38,7 @@ export function calculateIerc20Balance(transactions) {
 
 export async function getIerc20Balance(publicAddress) {
     const transactionTable = process.env.TRANSACTION_TABLE_NAME;
-    const transactions = await getItemsByPartitionKeyFromDynamoDB(transactionTable, "publicAddress", publicAddress);
+    const transactions = await getItemsFromDynamoDb(transactionTable, "publicAddress", publicAddress);
     const ierc20Balances = await calculateIerc20Balance(transactions);
     return ierc20Balances;
 }

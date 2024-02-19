@@ -1,11 +1,11 @@
 import { bot } from '../helpers/bot.mjs';
-import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, checkItemsExistInDynamoDb } from '../helpers/dynamoDB.mjs';
 import { handleMainMenu } from './mainMenu.mjs';
 
 export async function handleStart(chatId) {
     const userTable = process.env.USER_TABLE_NAME;
     const processTable = process.env.PROCESS_TABLE_NAME;
-    const userExists = await checkPartitionValueExistsInDynamoDB(userTable, `userId`, chatId );
+    const userExists = await checkItemsExistInDynamoDb(userTable, `userId`, chatId );
 
     if (userExists) {
         await handleMainMenu(chatId);

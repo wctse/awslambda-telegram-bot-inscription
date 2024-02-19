@@ -1,5 +1,5 @@
 import { bot, mainMenuKeyboard, cancelMainMenuKeyboard, divider } from '../helpers/bot.mjs';
-import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsByPartitionKeyFromDynamoDB, editUserState, editItemInDynamoDB, updateWalletLastActiveAt  } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, getItemFromDynamoDB, getWalletAddressByUserId, getItemsFromDynamoDb, editUserState, editItemInDynamoDB, updateWalletLastActiveAt  } from '../helpers/dynamoDB.mjs';
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from '../helpers/ethers.mjs';
 import { decrypt } from '../helpers/kms.mjs';
 import { round, updateNonce } from '../helpers/commonUtils.mjs';

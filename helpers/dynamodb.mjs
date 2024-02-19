@@ -103,8 +103,22 @@ export async function getItemFromDynamoDB(tableName, key) {
     }
 }
 
-// Get all items for a specific partition key value from a DynamoDB table
-export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKeyName, partitionKeyValue) {
+/**
+ * Get all items for a specific partition key value from a DynamoDB table
+ *  
+ * @param {string} tableName The name of the DynamoDB table
+ * @param {string} partitionKeyName The name of the partition key
+ * @param {string} partitionKeyValue The value of the partition key
+ * @param {string} sortKeyName The name of the sort key, null if not using a sort key
+ * @param {string} sortKeyValue The value of the sort key, null if not using a sort key
+ * @param {string} indexName The name of the secondary index to use, null if not using a secondary index
+ * @returns {Array} An array of items from the table
+*/ 
+export async function getItemsFromDynamoDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName = null, sortKeyValue = null, indexName = null) {
+    if (!partitionKeyName || !partitionKeyValue) {
+        throw new Error('Function getItemsFromDynamoDb requires at least partition key parameters to be specified');
+    }
+
     const params = {
         TableName: tableName,
         KeyConditionExpression: `${partitionKeyName} = :partitionkeyval`,
@@ -112,6 +126,15 @@ export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKey
             ':partitionkeyval': partitionKeyValue
         }
     };
+
+    if (sortKeyName && sortKeyValue) {
+        params.KeyConditionExpression += ` AND ${sortKeyName} = :sortkeyval`;
+        params.ExpressionAttributeValues[':sortkeyval'] = sortKeyValue;
+    }
+
+    if (indexName) {
+        params.IndexName = indexName;
+    }
 
     try {
         const data = await dynamoDB.query(params).promise();
@@ -122,25 +145,19 @@ export async function getItemsByPartitionKeyFromDynamoDB(tableName, partitionKey
     }
 }
 
-// Check if any items for a specific partition key value exists in a DynamoDB table
-// Used in this project to check if a user already has a wallet
-export async function checkPartitionValueExistsInDynamoDB(tableName, partitionKeyName, partitionKeyValue) {
-    const params = {
-        TableName: tableName,
-        KeyConditionExpression: `${partitionKeyName} = :partitionkeyval`,
-        ExpressionAttributeValues: {
-            ':partitionkeyval': partitionKeyValue
-        },
-        Limit: 1 // Only retrieve one item to check existence to limit reading capacity unit usage
-    };
-
-    try {
-        const data = await dynamoDB.query(params).promise();
-        return data.Items.length > 0;
-    } catch (error) {
-        console.error('Error checking items in DynamoDB:', error);
-        throw error;
-    }
+/**
+ * Check if an item exists in a DynamoDB table.
+ * 
+ * @param {string} tableName The name of the DynamoDB table
+ * @param {string} partitionKeyName The name of the partition key
+ * @param {string} partitionKeyValue The value of the partition key
+ * @param {string} sortKeyName The name of the sort key, null if not using a sort key
+ * @param {string} sortKeyValue The value of the sort key, null if not using a sort key
+ * @param {string} indexName The name of the secondary index to use, null if not using a secondary index
+ * @returns {boolean} Whether any item associated to the given keys and index exists in the table
+ */
+export async function checkItemsExistInDynamoDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName = null, sortKeyValue = null, indexName = null) {
+    return getItemsFromDynamoDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName, sortKeyValue, indexName).then(items => items.length > 0);
 }
 
 // Update the user state in the user table
@@ -161,7 +178,7 @@ export async function editUserState(userId, userState) {
 // Get the user state from the user table
 export async function getUserState(userId) {
     const userTable = process.env.USER_TABLE_NAME;
-    const userItems = await getItemsByPartitionKeyFromDynamoDB(userTable, `userId`, userId);
+    const userItems = await getItemsFromDynamoDb(userTable, `userId`, userId);
 
     if (userItems.length === 0) {
         return null;
@@ -173,7 +190,7 @@ export async function getUserState(userId) {
 // Get the wallet address for a specific user ID
 export async function getWalletAddressByUserId(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletItems = await getItemsByPartitionKeyFromDynamoDB(walletTable, `userId`, chatId);
+    const walletItems = await getItemsFromDynamoDb(walletTable, `userId`, chatId);
 
     if (walletItems.length === 0) {
         return null;

@@ -2,11 +2,11 @@ import { ethers } from 'ethers';
 
 import { bot, mainMenuKeyboard } from '../helpers/bot.mjs';
 import { encrypt } from '../helpers/kms.mjs';
-import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, checkItemsExistInDynamoDb } from '../helpers/dynamoDB.mjs';
 
 export async function handleCreateWallet(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletExistsForUser = await checkPartitionValueExistsInDynamoDB(walletTable, `userId`, chatId );
+    const walletExistsForUser = await checkItemsExistInDynamoDb(walletTable, `userId`, chatId );
 
     if (walletExistsForUser) {
         console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");

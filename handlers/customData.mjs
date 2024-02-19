@@ -1,5 +1,5 @@
 import { bot, divider, mainMenuKeyboard } from "../helpers/bot.mjs";
-import { addItemToDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getItemsByPartitionKeyFromDynamoDB, getWalletAddressByUserId, updateWalletLastActiveAt } from "../helpers/dynamoDB.mjs";
+import { addItemToDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getWalletAddressByUserId, updateWalletLastActiveAt } from "../helpers/dynamoDB.mjs";
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from "../helpers/ethers.mjs";
 import { decrypt } from "../helpers/kms.mjs";
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work

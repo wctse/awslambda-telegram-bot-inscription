@@ -1,6 +1,6 @@
 import { isHexString } from "ethers";
 import { bot, cancelMainMenuKeyboard, divider, mainMenuKeyboard } from "../helpers/bot.mjs";
-import { addItemToDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getItemsByPartitionKeyFromDynamoDB, getWalletAddressByUserId, updateWalletLastActiveAt } from "../helpers/dynamoDB.mjs";
+import { addItemToDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getItemsFromDynamoDb, getWalletAddressByUserId, updateWalletLastActiveAt } from "../helpers/dynamoDB.mjs";
 import { getCurrentGasPrice, getEthBalance, sendTransaction } from "../helpers/ethers.mjs";
 import { decrypt } from "../helpers/kms.mjs";
 import { getEthPrice } from "../helpers/coingecko.mjs";
@@ -142,8 +142,8 @@ export async function handleSendEthAmountInput(chatId, amount) {
 
 export async function handleSendEthConfirm(chatId) {
     const [processItems, walletItems, currentGasPrice] = await Promise.all([
-        getItemsByPartitionKeyFromDynamoDB(processTable, 'userId', chatId),
-        getItemsByPartitionKeyFromDynamoDB(walletTable, 'userId', chatId),
+        getItemsFromDynamoDb(processTable, 'userId', chatId),
+        getItemsFromDynamoDb(walletTable, 'userId', chatId),
         getCurrentGasPrice()
     ]);
 

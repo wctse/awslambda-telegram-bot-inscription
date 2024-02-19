@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { bot } from '../helpers/bot.mjs';
 import { encrypt } from '../helpers/kms.mjs';
-import { addItemToDynamoDB, checkPartitionValueExistsInDynamoDB, editUserState } from '../helpers/dynamoDB.mjs';
+import { addItemToDynamoDB, checkItemsExistInDynamoDb, editUserState } from '../helpers/dynamoDB.mjs';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 
@@ -12,7 +12,7 @@ const walletTable = process.env.WALLET_TABLE_NAME;
  * @param {number} chatId Telegram user ID
  */
 export async function handleImportWalletInitiate(chatId) {
-    const walletExistsForUser = await checkPartitionValueExistsInDynamoDB(walletTable, `userId`, chatId );
+    const walletExistsForUser = await checkItemsExistInDynamoDb(walletTable, `userId`, chatId );
 
     if (walletExistsForUser) {
         console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");
@@ -61,6 +61,21 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
     const wallet = new ethers.Wallet(privateKey);
     const publicAddress = wallet.address;
 
+    // Check if the wallet is already imported by another user
+    const walletExists = await checkItemsExistInDynamoDb(walletTable, `publicAddress`, publicAddress, null, null, "publicAddress-index");
+
+    if (walletExists) {
+        const walletExistsMessage = `⚠️ This wallet is already imported by another user. Please use a different wallet.`;
+        const walletExistsKeyboard = {
+            inline_keyboard: [[
+                { text: "🔙 Back", callback_data: "start" }
+            ]]
+        };
+
+        await bot.sendMessage(chatId, walletExistsMessage, { reply_markup: walletExistsKeyboard });
+        return;
+    }
+
     const encryptedPrivateKey = await encrypt(privateKey);
 
     // DynamoDB wallet data table item
@@ -79,7 +94,6 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
 
     // Add the user's wallet to DynamoDB
     console.info("Adding new wallet to DynamoDB:", chatId, publicAddress);
-    await addItemToDynamoDB(walletTable, newWalletItem);
 
     const importWalletSuccessMessage = `✅ Your Ethereum wallet has been imported: \`${publicAddress}\``;
     const importWalletSuccessKeyboard = {
@@ -89,6 +103,9 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
         ]]
     };
 
-    await bot.sendMessage(chatId, importWalletSuccessMessage, { reply_markup: importWalletSuccessKeyboard, parse_mode: "Markdown" });
-    editUserState(chatId, "IDLE");
+    await Promise.all([
+        bot.sendMessage(chatId, importWalletSuccessMessage, { reply_markup: importWalletSuccessKeyboard, parse_mode: "Markdown" }),
+        addItemToDynamoDB(walletTable, newWalletItem),
+        editUserState(chatId, "IDLE")
+    ]);
 }
