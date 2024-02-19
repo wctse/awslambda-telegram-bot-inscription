@@ -65,7 +65,8 @@ export async function sendTransaction(privateKey, data = '', to = null, gasSetti
     }
 
     const hexData = ethers.hexlify(ethers.toUtf8Bytes(data)); // Evaluates to '0x' if data is an empty string
-    let maxFeePerGas = (await provider.getFeeData()).maxFeePerGas; // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified
+    const feeData = await provider.getFeeData();
+    let maxFeePerGas = feeData.maxFeePerGas; // Explicitly get the fee data to avoid maxFeePerGas being set to 0 when maxPriorityFeePerGas is specified
 
     let customPriorityFeePerGas;
 
