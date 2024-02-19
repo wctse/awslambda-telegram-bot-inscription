@@ -5,11 +5,17 @@ import { handleMainMenu } from './mainMenu.mjs';
 export async function handleStart(chatId) {
     const userTable = process.env.USER_TABLE_NAME;
     const processTable = process.env.PROCESS_TABLE_NAME;
+    const walletTable = process.env.WALLET_TABLE_NAME;
+
     const userExists = await checkItemsExistInDynamoDb(userTable, `userId`, chatId );
 
     if (userExists) {
-        await handleMainMenu(chatId);
-        return;
+        const userHasWallet = await checkItemsExistInDynamoDb(walletTable, `userId`, chatId );
+
+        if (userHasWallet) {
+            await handleMainMenu(chatId);
+            return;
+        }
 
     } else {
         const userItem = {
