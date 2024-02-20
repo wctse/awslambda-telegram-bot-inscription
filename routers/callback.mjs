@@ -8,7 +8,6 @@ import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepeat } from "../handlers/customData.mjs";
 
-import { editUserState } from "../helpers/dynamoDB.mjs";
 import { handleMultiMintStop, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
 import { handleSendEthConfirm, handleSendEthInitiate } from "../handlers/sendEth.mjs";
 import { handleInvalidInput } from "../handlers/invalidInput.mjs";

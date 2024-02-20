@@ -25,7 +25,7 @@ export function toProperCase(string) {
 export function chunkArray(array, chunkSize, padLastChunk = false, pad = null) {
     const chunkedArr = [];
     for (let i = 0; i < array.length; i += chunkSize) {
-        const chunk = array.slice(i, i + chunkSize)
+        const chunk = array.slice(i, i + chunkSize);
 
         if (padLastChunk) {
           while (chunk.length < chunkSize) {

@@ -31,7 +31,7 @@ export async function handleSettings(chatId) {
     };
     
     await editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() });
-    await editUserState(chatId, "SETTINGS")
+    await editUserState(chatId, "SETTINGS");
     await bot.sendMessage(chatId, settingsMessage, { reply_markup: settingsKeyboard, parse_mode: 'Markdown' });
 }
 
