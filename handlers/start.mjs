@@ -42,5 +42,5 @@ export async function handleStart(chatId) {
         ]]
     };
     
-    await bot.sendMessage(chatId, "Welcome to 1Bot, the ultimate bot for inscriptions. Create your wallet seamlessly with one click:", { reply_markup: keyboard });
+    await bot.sendMessage(chatId, "🐉 Welcome to Inscription Dragon, the ultimate bot for inscriptions. Create or import your wallet seamlessly with one click:", { reply_markup: keyboard });
 }

@@ -7,9 +7,9 @@ export async function handleMainMenu(chatId) {
     const currentGasPrice = round(await getCurrentGasPrice(), 4);
 
     const mainMenuMessage = 
-    `Welcome to 1bot, the ultimate bot for inscriptions! \n` + 
-    `Current gas price: ${currentGasPrice} Gwei\n` +
+    `🐉 Welcome to Inscription Dragon, the ultimate bot for inscriptions! \n` + 
     `\n` +
+    `Current gas price: ${currentGasPrice} Gwei\n` +
     `Choose an option:`;
 
     const mainMenuKeyboard = {

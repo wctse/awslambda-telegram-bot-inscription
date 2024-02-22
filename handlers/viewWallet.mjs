@@ -29,6 +29,10 @@ export async function handleViewWallet(chatId) {
         viewWalletMessage += `${ierc20Ticker}: \`${ierc20Balance}\`\n`;
     }
 
+    if (Object.keys(ierc20Balances).length === 0) {
+        viewWalletMessage += `None\n`;
+    }
+
     viewWalletMessage = viewWalletMessage.slice(0, -1); // Remove last newline
     viewWalletMessage += balanceCalculationMessage;
 
