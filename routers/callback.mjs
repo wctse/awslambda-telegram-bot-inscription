@@ -95,7 +95,7 @@ export async function routeCallback(chatId, data, userState, messageId) {
     }
 
     // Repeat in mint step 5
-    else if (data === 'mint_repeat' && userState === 'IDLE') {
+    else if (data === 'mint_repeat' && userState === 'MINT_CONFIRMED') {
         await handleMintRepeat(chatId);
     }
 
@@ -152,7 +152,7 @@ export async function routeCallback(chatId, data, userState, messageId) {
         await handleCustomDataConfirm(chatId);
     }
 
-    else if (data === 'custom_data_repeat' && userState === 'IDLE') {
+    else if (data === 'custom_data_repeat' && userState === 'CUSTOM_DATA_CONFIRMED') {
         await handleCustomDataRepeat(chatId);
     }
 
