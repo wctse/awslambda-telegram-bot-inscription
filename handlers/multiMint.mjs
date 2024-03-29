@@ -24,7 +24,7 @@ export async function handleMultiMintInitiate(chatId) {
     const multiMintDescriptionMessage = 
         "📚 *Multi-mint*\n" +
         "\n" +
-        "This feature mints new inscription tokens that was deployed for a set amount of times, once per block, saving precious time for you. \n" +
+        "This feature mints new inscription tokens that was deployed for a set amount of times, saving precious time for you. \n" +
         divider +
         "\n";
 

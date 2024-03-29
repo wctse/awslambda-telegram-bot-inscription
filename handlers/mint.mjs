@@ -255,12 +255,12 @@ export async function handleMintConfirm(chatId) {
             { text: "💰 View wallet", callback_data: "view_wallet" },
         ],
         [
-            { text: "️↩️ Main menu", callback_data: "main_menu" },
+            { text: "️↩️ Main menu", callback_data: "cancel_main_menu" }, // Use cancel to reset the user state
         ]]
     };
 
     const sendMessagePromise = bot.sendMessage(chatId, transactionSentMessage, { parse_mode: 'Markdown', reply_markup: transactionSentKeyboard });
-    const editUserStatePromise = editUserState(chatId, 'IDLE');
+    const editUserStatePromise = editUserState(chatId, 'MINT_CONFIRMED');
 
     await Promise.all([addTransactionItemPromise, sendMessagePromise, editUserStatePromise]);
 }
