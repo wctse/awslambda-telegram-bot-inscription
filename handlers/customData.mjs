@@ -194,3 +194,8 @@ export async function handleCustomDataRepeat(chatId) {
     const data = (await getItemFromDynamoDB(processTable, { userId: chatId })).customDataData;
     await handleCustomDataInput(chatId, data);
 }
+
+export async function handleCustomDataCommand(chatId, text) {
+    const customData = text.replace('/customdata', '').trim();
+    await handleCustomDataInput(chatId, customData);
+}

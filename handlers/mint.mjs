@@ -183,7 +183,7 @@ export async function handleMintConfirm(chatId) {
 
     // Check validity of data
     if (!data) {
-        bot.sendMessage(chatId, "⚠️ An error has occurred. Please try again.", { reply_markup: backToMainMenuKeyboard });
+        bot.sendMessage(chatId, "⚠️ An error has occurred. Please try again.", { reply_markup: mainMenuKeyboard });
         console.error("No inscription data provided in handleMintConfirm.");
         return;
     }
@@ -309,4 +309,80 @@ async function handleMintReviewRetry(chatId, retryReason) {
  */
 export async function handleMintRepeat(chatId) {
     await handleMintReviewRetry(chatId, 'repeat_mint');
+}
+
+/**
+ * Mint command: Handle the information provided in the mint command and prompts review
+ * 
+ * @param {*} chatId Telegram user ID
+ * @param {*} text Command message
+ */
+export async function handleMintCommand(chatId, text) {
+    const [_, protocol, ticker, amount] = text.split(' ');
+    const data = `data:application/json,{"p":"${protocol}","op":"mint","tick":"${ticker}","amt":"${amount}","nonce":""}`;
+
+    if (!protocol || !ticker || !amount) {
+        await bot.sendMessage(chatId, "⚠️ Please input the protocol, token ticker, and amount in the format `/mint <protocol> <ticker> <amount>`.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    else if (isNaN(amount) || amount <= 0) {
+        await bot.sendMessage(chatId, "⚠️ Please input a valid number for the amount.");
+        return;
+    }
+
+    else if (protocol != 'ierc-20') {
+        await bot.sendMessage(chatId, "⚠️ Only `ierc-20` protocol is supported at the moment.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    const publicAddress = await getWalletAddressByUserId(chatId);
+
+    const [walletItem, currentGasPrice, currentEthPrice, ethBalance] = await Promise.all([
+        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress }),
+        getCurrentGasPrice(),
+        getEthPrice(),
+        getEthBalance(publicAddress)
+    ]);
+
+    const chainName = walletItem.chainName;
+
+    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16), 8); // in ETH; + 1 to account for the priority fees
+    const estimatedGasCostUsd = round(estimatedGasCost * currentEthPrice, 2);
+
+    let mintReviewMessage = 
+        `⌛ Please review the inscription information below. \n` +
+        `\n` +
+        `Wallet: \`${publicAddress}\`\n` +
+        `Chain: \`${chainName}\`\n` +
+        `Protocol: \`${protocol}\`\n` +
+        `Ticker: \`${ticker}\`\n` +
+        `Amount: \`${amount}\`\n` +
+        `\n` +
+        `Current Gas Price: ${currentGasPrice} Gwei\n` +
+        `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
+
+    if (ethBalance < estimatedGasCost) {
+        mintReviewMessage += "\n\n" +    
+            "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
+            "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
+    }
+
+    mintReviewMessage += "\n\n" +
+        "☝️ Please confirm the information in 1 minute:";
+
+    const mintReviewKeyboard = {
+        inline_keyboard: [[
+            { text: "✅ Confirm", callback_data: "mint_confirm" },
+            { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
+        ]]
+    };
+
+    const currentTime = Date.now();
+
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { mintAmount: amount, mintData: data, mintReviewPromptedAt: currentTime, mintGasPrice: currentGasPrice }),
+        editUserState(chatId, 'MINT_AMOUNT_INPUTTED'),
+        bot.sendMessage(chatId, mintReviewMessage, { reply_markup: mintReviewKeyboard, parse_mode: 'Markdown' })
+    ]);
 }

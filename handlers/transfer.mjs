@@ -356,3 +356,91 @@ export async function handleTransferReviewRetry(chatId, retryReason) {
     // Use Promise.all to wait for both operations
     await Promise.all([sendMessagePromise, retryTransferAmountInputPromise]);
 }
+
+export async function handleTransferCommand(chatId, text) {
+    const [_, protocol, ticker, amount, recipient] = text.split(' ');
+
+    if (!protocol || !ticker || !amount || !recipient) {
+        await bot.sendMessage(chatId, "⛔️ ⛔️ Please input the protocol, token ticker, amount, and recipient address in the format `/transfer <protocol> <ticker> <amount> <recipient>`.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    else if (protocol !== 'ierc-20') {
+        await bot.sendMessage(chatId, "⛔️ Only ierc-20 protocol is supported for the moment.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    else if (Number.isNaN(amount) || amount <= 0) {
+        await bot.sendMessage(chatId, "⛔️ Invalid amount. Please try again.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    else if (!isHexString(recipient, 20)) {
+        await bot.sendMessage(chatId, "⛔️ Invalid address. Please try again.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    const publicAddress = await getWalletAddressByUserId(chatId);
+
+    const [walletItem, currentGasPrice, currentEthPrice, ethBalance, ierc20Balances] = await Promise.all([
+        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress }),
+        getCurrentGasPrice(),
+        getEthPrice(),
+        getEthBalance(publicAddress),
+        getIerc20Balance(publicAddress)
+    ]);
+
+    const currentTime = Date.now();
+
+    const data = `data:application/json,{"p":"${protocol}","op":"transfer","tick":"${ticker}","nonce":"","to":[{"amt":"${amount}","recv":"${recipient}"}]}`;
+    const updatedData = await updateNonce(data);
+
+    // Get wallet and network information
+    const chainName = walletItem.chainName;
+
+    // TODO: Check whether the wallet has sufficient balance for the transfer when API is available
+    
+    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + updatedData.length * 16), 8); // in ETH; + 1 to account for the priority fees
+    const estimatedGasCostUsd = round(estimatedGasCost * currentEthPrice, 2);
+
+    let transferReviewMessage =
+        `⌛ Please review the transfer information below. \n` +
+        `\n` +
+        `Wallet: \`${publicAddress}\`\n` +
+        `Chain: \`${chainName}\`\n` +
+        `Recipient: \`${recipient}\`\n` +
+        `Protocol: \`${protocol}\`\n` +
+        `Ticker: \`${ticker}\`\n` +
+        `Amount: \`${amount}\`\n` +
+        `\n` +
+        `Current Gas Price: ${currentGasPrice} Gwei\n` +
+        `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
+
+    if (!ticker in ierc20Balances || ierc20Balances[ticker] < amount) {
+        transferReviewMessage += "\n\n" +
+            "⚠️ The token balance in the wallet is insufficient for the transfer according to previous actions in the bot. " +
+            "Please proceed only after checking your balances.";
+    }
+
+    if (ethBalance < estimatedGasCost) {
+        transferReviewMessage += "\n\n" +    
+            "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
+            "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
+    }
+
+    transferReviewMessage += "\n\n" +
+        "☝️ Please confirm the information in 1 minute:";
+
+    const transferReviewKeyboard = {
+        inline_keyboard: [[
+            { text: "✅ Confirm", callback_data: "transfer_confirm" },
+            { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
+        ]]
+    };
+
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { transferData: updatedData, transferReviewPromptedAt: currentTime, transferGasPrice: currentGasPrice }),
+        editUserState(chatId, "TRANSFER_AMOUNT_INPUTTED"),
+        bot.sendMessage(chatId, transferReviewMessage, { reply_markup: transferReviewKeyboard, parse_mode: 'Markdown' })
+    ]);
+}

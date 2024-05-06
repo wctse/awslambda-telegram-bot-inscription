@@ -39,22 +39,16 @@ export async function handleMultiMintInitiate(chatId) {
     // Multiple multi-mint progresses are not supported as they may conflict and be invalid
     if (multiMintItem) {
         const data = JSON.parse(multiMintItem.inscriptionData.slice(22));
-        const protocol = data.p;
-        const ticker = data.tick;
-        const amount = data.amt;
-
-        const timesMinted = multiMintItem.timesMinted;
-        const timesToMint = multiMintItem.timesToMint;
 
         const multiMintInProgressMessage = multiMintDescriptionMessage +
             `⚠️ You have a multi-mint in progress. Please wait for it to complete before starting a new one.\n` +
             `\n` +
             `Wallet: \`${publicAddress}\`\n` +
-            `Protocol: \`${protocol}\`\n` +
-            `Ticker: \`${ticker}\`\n` +
-            `Amount: \`${amount}\`\n` +
+            `Protocol: \`${data.p}\`\n` +
+            `Ticker: \`${data.tick}\`\n` +
+            `Amount: \`${data.amt}\`\n` +
             `\n` +
-            `Mint progress: \`${timesMinted}/${timesToMint}\``;
+            `Mint progress: \`${multiMintItem.timesMinted}/${multiMintItem.timesToMint}\``;
 
         const multiMintInProgressKeyboard = {
             inline_keyboard: [
@@ -330,4 +324,112 @@ export async function handleMultiMintComplete(chatId, publicAddress, inscription
         `Total amount: \`${amt * timesMinted}\``;
 
     await bot.sendMessage(chatId, multiMintCompleteMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown' });
+}
+
+/**
+ * Multi-mint command: Handle the information provided in the multi-mint command and prompts review 
+ * 
+ * @param {number} chatId Telegram user ID
+ * @param {str} text Text of the command
+ */
+export async function handleMultiMintCommand(chatId, text) {
+    const [_, protocol, ticker, amount, times] = text.split(' ');
+
+    if (!protocol || !ticker || !amount || !times) {
+        await bot.sendMessage(chatId, "⛔️ Please input the protocol, token ticker, amount, and times to mint in the format `/multimint <protocol> <ticker> <amount> <times>`.", { parse_mode: 'Markdown' });
+        return;
+    }
+
+    else if (protocol !== 'ierc-20') {
+        await bot.sendMessage(chatId, "⛔️ Only ierc-20 protocol is supported for the moment.");
+        return;
+    }
+
+    else if (isNaN(amount) || amount <= 0) {
+        await bot.sendMessage(chatId, "⛔️ Please input a valid amount.");
+        return;
+    }
+
+    else if (Number.isNaN(times) || times <= 0) {
+        await bot.sendMessage(chatId, "⛔️ Please choose or input a valid number.");
+        return;
+    }
+    
+    else if (times > 100) {
+        await bot.sendMessage(chatId, "⛔️ The maximum multi-mint times is 100.");
+        return;
+    }
+
+    const [publicAddress, currentGasPrice, ethPrice, multiMintItem] = await Promise.all([
+        getWalletAddressByUserId(chatId),
+        getCurrentGasPrice(),
+        getEthPrice(),
+        getItemFromDynamoDB(multiMintTable, { userId: chatId, publicAddress: publicAddress })
+    ]);
+
+    if (multiMintItem) {
+        const data = JSON.parse(multiMintItem.inscriptionData.slice(22));
+
+        const multiMintInProgressMessage = multiMintDescriptionMessage +
+            `⚠️ You have a multi-mint in progress. Please wait for it to complete before starting a new one.\n` +
+            `\n` +
+            `Wallet: \`${publicAddress}\`\n` +
+            `Protocol: \`${data.p}\`\n` +
+            `Ticker: \`${data.tick}\`\n` +
+            `Amount: \`${data.amt}\`\n` +
+            `\n` +
+            `Mint progress: \`${multiMintItem.timesMinted}/${multiMintItem.timesToMint}\``;
+
+        const multiMintInProgressKeyboard = {
+            inline_keyboard: [
+                [
+                    { text: "❌ Stop current multi-mint", callback_data: "multi_mint_stop" },
+                ],
+                [
+                    { text: "🔄 Refresh", callback_data: "multi_mint_refresh" },
+                    { text: "📃 Main menu", callback_data: "main_menu" }
+                ]]
+            };
+
+        await bot.sendMessage(chatId, multiMintInProgressMessage, { reply_markup: multiMintInProgressKeyboard, parse_mode: 'Markdown' });
+        return;
+    }
+
+
+    const walletItem = await getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress });
+    const chainName = walletItem.chainName;
+    
+    const data = `data:application/json,{"p":"${protocol}","op":"mint","tick":"${ticker}","amt":"${amount}","nonce":""}`;
+
+    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + data.length * 16) * times, 8); // in ETH; + 1 to account for the priority fees
+    const estimatedGasCostUsd = round(estimatedGasCost * ethPrice, 2);
+
+    const multiMintReviewMessage =
+        `⌛ Please review the multi-mint information below.` +
+        `\n` +
+        `Wallet: \`${publicAddress}\`\n` +
+        `Chain: \`${chainName}\`\n` +
+        `Protocol: \`${protocol}\`\n` +
+        `Ticker: \`${ticker}\`\n` +
+        `Amount: \`${amount}\`\n` +
+        `\n` +
+        `The mint will be executed for \`${times}\` times.\n` +
+        `\n` +
+        `Current Gas Price: ${currentGasPrice} Gwei\n` +
+        `Estimated Total Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd})`;
+
+    const multiMintReviewKeyboard = {
+        inline_keyboard: [
+            [
+                { text: "✅ Confirm", callback_data: "multi_mint_confirm" },
+                { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
+            ]
+        ]
+    };
+
+    await Promise.all([
+        editItemInDynamoDB(processTable, { userId: chatId }, { multiMintTimes: times, multiMintData: data }),
+        editUserState(chatId, 'MULTI_MINT_TIMES_INPUTTED'),
+        bot.sendMessage(chatId, multiMintReviewMessage, { reply_markup: multiMintReviewKeyboard, parse_mode: 'Markdown' })
+    ]);
 }

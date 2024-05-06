@@ -1,8 +1,9 @@
 import { routeMessage } from './routers/message.mjs';
 import { routeCallback } from './routers/callback.mjs';
+import { routeCommand } from './routers/command.mjs';
+import { routeInternalEvent } from './routers/internalEvent.mjs';
 import { deleteMessage } from './helpers/bot.mjs';
 import { deleteAttributesExceptKeys, editItemInDynamoDB, editUserState, getUserState } from './helpers/dynamoDB.mjs';
-import { routeInternalEvent } from './routers/internalEvent.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -21,11 +22,15 @@ export async function handler(event, context) {
         const message = update.message;
         const chatId = message.chat.id;
         const text = message.text;
-        const userState = await getUserState(chatId);
-
+        
+        // Decide whether to route as a command or a regular message based on the prefix
+        const routingFunction = text.startsWith('/')
+            ? routeCommand // If the message starts with "/", use routeCommand
+            : routeMessage; // Otherwise, use routeMessage
+        
         await Promise.all([
             editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true),
-            routeMessage(chatId, text, userState)
+            routingFunction(chatId, text, await getUserState(chatId))
         ]);
         
     } else if (update.callback_query) {
@@ -33,13 +38,12 @@ export async function handler(event, context) {
         const chatId = callbackQuery.message.chat.id;
         const messageId = callbackQuery.message.message_id;
         const data = callbackQuery.data;
-        const userState = await getUserState(chatId);
 
         let callbackPromises = [
             editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }),
         ];
 
-        let routeCallbackPromise = routeCallback(chatId, data, userState, messageId);
+        let routeCallbackPromise = routeCallback(chatId, data, await getUserState(chatId), messageId);
 
         if (data.includes('refresh')) {
             routeCallbackPromise = routeCallbackPromise.then(() => deleteMessage(chatId, messageId)); // Better UX if delete old message right after new message is sent
