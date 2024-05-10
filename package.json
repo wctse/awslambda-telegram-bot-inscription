@@ -9,8 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@tonconnect/ui": "^2.0.0",
     "aws-sdk": "^2.1506.0",
     "ethers": "^6.9.0",
-    "node-telegram-bot-api": "^0.64.0"
+    "node-telegram-bot-api": "^0.64.0",
+    "qrcode": "^1.5.3"
   }
 }
