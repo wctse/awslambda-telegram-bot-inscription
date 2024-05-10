@@ -187,16 +187,40 @@ export async function getUserState(userId) {
     return userItems[0].userState;
 }
 
+export async function getCurrentChain(userId) {
+    const userTable = process.env.USER_TABLE_NAME;
+    const userItems = await getItemsFromDynamoDb(userTable, `userId`, userId);
+    
+    if (userItems.length === 0) {
+        return null;
+    }
+
+    return userItems[0].currentChain;
+}
+
 // Get the wallet address for a specific user ID
+// TODO: Delete this function and use getWalletAddress instead
 export async function getWalletAddressByUserId(chatId) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletItems = await getItemsFromDynamoDb(walletTable, `userId`, chatId);
+    const walletItems = getItemsFromDynamoDb(walletTable, `userId`, chatId);
 
     if (walletItems.length === 0) {
         return null;
     }
 
     return walletItems[0].publicAddress;
+}
+
+export async function getWalletAddress(chatId, chainName) {
+    const walletTable = process.env.WALLET_TABLE_NAME;
+    const walletItems = await getItemsFromDynamoDb(walletTable, `userId`, chatId);
+
+    if (!walletItems) {
+        return null;
+    }
+
+    const walletItem = walletItems.find(item => item.chainName === chainName);
+    return walletItem ? walletItem.publicAddress : null;
 }
 
 export async function updateWalletLastActiveAt(userId, publicAddress) {

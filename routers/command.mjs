@@ -1,4 +1,4 @@
-import { handleStart } from '../handlers/start.mjs';
+import { handleStart } from '../handlers/start/start.mjs';
 import { handleMainMenu } from '../handlers/mainMenu.mjs';
 import { handleMintInitiate, handleMintCommand } from '../handlers/mint.mjs';
 import { handleMultiMintInitiate, handleMultiMintCommand } from '../handlers/multiMint.mjs';

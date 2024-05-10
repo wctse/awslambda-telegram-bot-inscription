@@ -1,31 +1,44 @@
-import { handleCreateWallet } from "../handlers/createWallet.mjs";
-import { handleImportWalletInitiate } from "../handlers/importWallet.mjs";
-import { handleStart } from "../handlers/start.mjs";
-import { handleMainMenu } from "../handlers/mainMenu.mjs";
+import { handleStart } from "../handlers/start/start.mjs";
+import { handleStartCreateWalletInitiate, handleStartCreateWalletChainName } from "../handlers/start/createWallet.mjs";
+import { handleStartImportWalletInitiate, handleStartImportWalletChainName } from "../handlers/start/importWallet.mjs";
+import { handleMainMenu, mainMenuWalletBackward, mainMenuWalletForward } from "../handlers/mainMenu.mjs";
 import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleMintRepeat } from "../handlers/mint.mjs";
 import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";
 import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepeat } from "../handlers/customData.mjs";
-
 import { handleMultiMintStop, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
 import { handleSendEthConfirm, handleSendEthInitiate } from "../handlers/sendEth.mjs";
 import { handleInvalidInput } from "../handlers/invalidInput.mjs";
 
 export async function routeCallback(chatId, data, userState, messageId) {
-    // -- INITIALIZATION -- //
+    // -- START -- //
     // Create wallet in start
-    if (data === 'create_wallet' && userState === 'IDLE') {
-        await handleCreateWallet(chatId);
+    if (data === 'start_create_wallet' && userState === 'IDLE') {
+        await handleStartCreateWalletInitiate(chatId);
+    }
+
+    else if (data.startsWith('start_create_wallet_chain_') && userState === 'START_CREATE_WALLET_INITIATED') {
+        const chainName = data.split('_')[4];
+        await handleStartCreateWalletChainName(chatId, chainName);
     }
 
     // Import wallet in start
-    else if (data === 'import_wallet' && userState === 'IDLE') {
-        await handleImportWalletInitiate(chatId);
+    else if (data === 'start_import_wallet' && userState === 'IDLE') {
+        await handleStartImportWalletInitiate(chatId);
     }
 
-    // Back to start in import wallet
-    else if (data === 'start' && userState === 'IMPORT_WALLET_INITIATED') {
+    else if (data.startsWith('start_import_wallet_chain_') && userState === 'START_IMPORT_WALLET_INITIATED') {
+        const chainName = data.split('_')[4];
+        await handleStartImportWalletChainName(chatId, chainName);
+    }
+
+    // Back to start in create and import wallet
+    else if (data === 'start' && (
+        userState === 'START_CREATE_WALLET_INITIATED' ||
+        userState === 'START_IMPORT_WALLET_INITIATED' ||
+        userState === 'START_IMPORT_WALLET_CHAIN_NAME_INPUT'
+    )) {
         await handleStart(chatId);
     }
 
@@ -39,6 +52,16 @@ export async function routeCallback(chatId, data, userState, messageId) {
     // Cancel and main menu in multiple interfaces
     else if (data === 'cancel_main_menu') {
         await handleMainMenu(chatId);
+    }
+
+    else if (data.startsWith('refresh_wallet_backward_from_')) {
+        const currentChainName = data.split('_')[4];
+        await mainMenuWalletBackward(chatId, currentChainName);
+    }
+
+    else if (data.startsWith('refresh_wallet_forward_from_')) {
+        const currentChainName = data.split('_')[4];
+        await mainMenuWalletForward(chatId, currentChainName);
     }
 
     // -- MAIN MENU -- //
