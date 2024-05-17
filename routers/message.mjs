@@ -1,6 +1,6 @@
 
 import { handleMintTickerInput, handleMintAmountInput } from  '../handlers/mint/index.mjs'
-import { handleStartImportWalletKeyInput } from '../handlers/wallets/importWallet.mjs';
+import { handleImportWalletKeyInput } from '../handlers/wallets/importWallet.mjs';
 import { handleTransferTickerInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
 import { handleCustomDataInput } from '../handlers/customData.mjs';
 import { handleMultiMintAmountInput, handleMultiMintTickerInput, handleMultiMintTimesInput } from '../handlers/multiMint.mjs';
@@ -11,7 +11,7 @@ export async function routeMessage(chatId, text, userState) {
 
     // IMPORT WALLET
     if (userState === 'START_IMPORT_WALLET_CHAIN_NAME_INPUT') {
-        await handleStartImportWalletKeyInput(chatId, text);
+        await handleImportWalletKeyInput(chatId, text);
 
     // MINT
     } else if (userState === 'MINT_PROTOCOL_INPUTTED') {

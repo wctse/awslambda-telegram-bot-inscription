@@ -53,5 +53,5 @@ export async function handleStart(chatId) {
     await Promise.all([
         bot.sendMessage(chatId, "🐉 Welcome to Inscription Dragon, the ultimate bot for inscriptions. Create or import your wallet:", { reply_markup: startKeyboard }),
         editUserState(chatId, "IDLE")
-    ])
+    ]);
 }

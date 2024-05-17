@@ -7,6 +7,7 @@ import { editUserState } from '../../common/db/userDb.mjs';
 import { getItemFromDb, editItemInDb } from '../../common/db/dbOperations.mjs';
 import { chunkArray } from '../../common/utils.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
+import { getEvmAddressFromPrivateKey, validateEvmPrivateKey } from '../../blockchains/evm/common/wallets.mjs';
 
 const userTable = process.env.USER_TABLE_NAME;
 const walletTable = process.env.WALLET_TABLE_NAME;
@@ -18,7 +19,7 @@ const processTable = process.env.PROCESS_TABLE_NAME;
  * @param {number} chatId Telegram user ID
  */
 
-export async function handleStartImportWalletInitiate(chatId) {
+export async function handleImportWalletInitiate(chatId) {
     const chainNames = config.CHAINS.map(chain => chain.name);
     const chainNameChunks = chunkArray(chainNames, 3);
 
@@ -49,7 +50,7 @@ export async function handleStartImportWalletInitiate(chatId) {
  * 
  * @param {number} chatId Telegram user ID
  */
-export async function handleStartImportWalletChainName(chatId, chainName) {
+export async function handleImportWalletChainName(chatId, chainName) {
     const chainWalletAddress = await getWalletAddress(chatId, chainName)
 
     if (chainWalletAddress) {
@@ -69,7 +70,7 @@ export async function handleStartImportWalletChainName(chatId, chainName) {
     const importWalletKeyMessage = 
         `🔑 You are importing your wallet for \`${chainName}\`. Please enter your private key below.` + '\n' +
         '\n' +
-        `⚠️ We will encrypt your private key in all storages, but only import private keys with a small amount of funds!`;
+        `⚠️ We will encrypt your private key in all storages, but still only import private keys with a small amount of funds!`;
 
     const importWalletKeyKeyboard = {
         inline_keyboard: [[
@@ -90,9 +91,10 @@ export async function handleStartImportWalletChainName(chatId, chainName) {
  * @param {number} chatId 
  * @param {str} privateKey 
  */
-export async function handleStartImportWalletKeyInput(chatId, privateKey) {
-    // Custom validation rather than isHexString() for private key to cater for the case of having no 0x prefix
-    if ((privateKey.length !== 64 && privateKey.length !== 66) || !privateKey.match(/^[0-9a-fx]+$/)) {
+export async function handleImportWalletKeyInput(chatId, privateKey) {
+    const chainName = (await getItemFromDb(processTable, { userId: chatId })).startImportWalletChainName;
+    
+    if (!validatePrivateKey(chainName, privateKey)) {
         const importWalletInvalidKeyMessage = `⚠️ Invalid private key. Please try again or go back to the starting page.`;
         const importWalletInvalidKeyKeyboard = {
             inline_keyboard: [[
@@ -104,9 +106,7 @@ export async function handleStartImportWalletKeyInput(chatId, privateKey) {
         return;
     }
     
-    const wallet = new ethers.Wallet(privateKey);
-    const publicAddress = wallet.address;
-    const chainName = (await getItemFromDb(processTable, { userId: chatId })).startImportWalletChainName;
+    const publicAddress = getAddressFromPrivateKey(chainName, privateKey);
 
     // Check if the wallet is already imported by another user
     const walletExists = await checkItemsExistInDb(walletTable, `publicAddress`, publicAddress, null, null, "publicAddress-index");
@@ -156,4 +156,24 @@ export async function handleStartImportWalletKeyInput(chatId, privateKey) {
         editUserState(chatId, "IDLE"),
         editItemInDb(userTable, { userId: chatId }, { currentChain: chainName })
     ]);
+}
+
+function validatePrivateKey(chainName, privateKey) {
+    switch (chainName) {
+        case "Ethereum":
+            return validateEvmPrivateKey(privateKey);
+
+        default:
+            throw new Error(`validatePrivateKey: Chain ${chainName} not supported`);
+    }
+}
+
+function getAddressFromPrivateKey(chainName, privateKey) {
+    switch (chainName) {
+        case "Ethereum":
+            return getEvmAddressFromPrivateKey(privateKey);
+
+        default:
+            throw new Error(`getAddressFromPrivateKey: Chain ${chainName} not supported`);
+    }
 }

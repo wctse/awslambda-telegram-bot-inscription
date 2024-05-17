@@ -14,7 +14,7 @@ const userTable = process.env.USER_TABLE_NAME;
  * 
  * @param {str} chatId 
  */
-export async function handleStartCreateWalletInitiate(chatId) {
+export async function handleCreateWalletInitiate(chatId) {
     const chainNames = config.CHAINS.map(chain => chain.name);
     const chainNameChunks = chunkArray(chainNames, 3);
 
@@ -46,7 +46,7 @@ export async function handleStartCreateWalletInitiate(chatId) {
  * @param {str} chainName 
  * @returns 
  */
-export async function handleStartCreateWalletChainName(chatId, chainName) {
+export async function handleCreateWalletChainName(chatId, chainName) {
     const walletTable = process.env.WALLET_TABLE_NAME;
     const walletExistsForUser = await checkItemsExistInDb(walletTable, `userId`, chatId );
 
@@ -99,9 +99,9 @@ export async function handleStartCreateWalletChainName(chatId, chainName) {
         `\n` + 
         `Address: \`${publicAddress}\``;
 
-    Promise.all([
+    await Promise.all([
         (async () => {
-            await bot.sendMessage(chatId, privateKeyMessage, { parse_mode: "Markdown" }); // Is there a way to let the user copy the private key without showing it in the chat? Maybe send a file with the private key? Or send a message with a button that copies the private key to the clipboard?
+            await bot.sendMessage(chatId, privateKeyMessage, { parse_mode: "Markdown" });
             await bot.sendMessage(chatId, publicAddressMessage, { parse_mode: "Markdown", reply_markup: mainMenuKeyboard });
         })(),
         addItemToDynamoDB(walletTable, newWalletItem),
@@ -116,6 +116,6 @@ function routeCreateWallet(chainName) {
             return createEvmWallet();
 
         default:
-            return handleStartCreateWalletChainName;
+            return Promise.reject(new Error(`routeCreateWallet: Chain ${chainName} not supported`));
     }
 }

@@ -1,6 +1,6 @@
 import { handleStart } from "../handlers/start.mjs";
-import { handleStartCreateWalletInitiate, handleStartCreateWalletChainName } from "../handlers/wallets/createWallet.mjs";
-import { handleStartImportWalletInitiate, handleStartImportWalletChainName } from "../handlers/wallets/importWallet.mjs";
+import { handleCreateWalletInitiate, handleCreateWalletChainName } from "../handlers/wallets/createWallet.mjs";
+import { handleImportWalletInitiate, handleImportWalletChainName } from "../handlers/wallets/importWallet.mjs";
 import { handleMainMenu, mainMenuWalletBackward, mainMenuWalletForward } from "../handlers/mainMenu.mjs";
 import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleMintRepeat }  from '../handlers/mint/index.mjs'
 import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";
@@ -17,22 +17,22 @@ export async function routeCallback(chatId, data, userState, messageId) {
     // -- START -- //
     // Create wallet in start
     if (data === 'start_create_wallet' && userState === 'IDLE') {
-        await handleStartCreateWalletInitiate(chatId);
+        await handleCreateWalletInitiate(chatId);
     }
 
     else if (data.startsWith('start_create_wallet_chain_') && userState === 'START_CREATE_WALLET_INITIATED') {
         const chainName = data.split('_')[4];
-        await handleStartCreateWalletChainName(chatId, chainName);
+        await handleCreateWalletChainName(chatId, chainName);
     }
 
     // Import wallet in start
     else if (data === 'start_import_wallet' && userState === 'IDLE') {
-        await handleStartImportWalletInitiate(chatId);
+        await handleImportWalletInitiate(chatId);
     }
 
     else if (data.startsWith('start_import_wallet_chain_') && userState === 'START_IMPORT_WALLET_INITIATED') {
         const chainName = data.split('_')[4];
-        await handleStartImportWalletChainName(chatId, chainName);
+        await handleImportWalletChainName(chatId, chainName);
     }
 
     // Back to start in create and import wallet
