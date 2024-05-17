@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { bot, mainMenuKeyboard } from '../../common/bot.mjs';
 import { encrypt } from '../../common/kms.mjs';
 import { addItemToDynamoDB, checkItemsExistInDb, editItemInDb } from '../../common/db/dbOperations.mjs';

@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { bot } from '../../common/bot.mjs';
 import { encrypt } from '../../common/kms.mjs';
 import { addItemToDynamoDB, checkItemsExistInDb } from '../../common/db/dbOperations.mjs';
@@ -7,7 +6,7 @@ import { editUserState } from '../../common/db/userDb.mjs';
 import { getItemFromDb, editItemInDb } from '../../common/db/dbOperations.mjs';
 import { chunkArray } from '../../common/utils.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
-import { getEvmAddressFromPrivateKey, validateEvmPrivateKey } from '../../blockchains/evm/common/wallets.mjs';
+import { validatePrivateKey, validateMnemonic, getPrivateKeyFromMnemonic, getAddressFromPrivateKey } from './utils.mjs';
 
 const userTable = process.env.USER_TABLE_NAME;
 const walletTable = process.env.WALLET_TABLE_NAME;
@@ -68,9 +67,9 @@ export async function handleImportWalletChainName(chatId, chainName) {
     }
 
     const importWalletKeyMessage = 
-        `🔑 You are importing your wallet for \`${chainName}\`. Please enter your private key below.` + '\n' +
+        `🔑 You are importing your wallet for \`${chainName}\`. Please enter your private key or mnemonic phrase divided by spaces below.` + '\n' +
         '\n' +
-        `⚠️ We will encrypt your private key in all storages, but still only import private keys with a small amount of funds!`;
+        `⚠️ We will encrypt your private key or mnemonic phrase in all storages, but still only import private keys with a small amount of funds!`;
 
     const importWalletKeyKeyboard = {
         inline_keyboard: [[
@@ -89,13 +88,30 @@ export async function handleImportWalletChainName(chatId, chainName) {
  * Import wallet step 3: Handles the user input for private key
  * 
  * @param {number} chatId 
- * @param {str} privateKey 
+ * @param {str} privateKeyOrMnemonic 
  */
-export async function handleImportWalletKeyInput(chatId, privateKey) {
+export async function handleImportWalletKeyInput(chatId, privateKeyOrMnemonic) {
     const chainName = (await getItemFromDb(processTable, { userId: chatId })).startImportWalletChainName;
     
-    if (!validatePrivateKey(chainName, privateKey)) {
-        const importWalletInvalidKeyMessage = `⚠️ Invalid private key. Please try again or go back to the starting page.`;
+    let privateKey, mnemonicError;
+
+    const isPrivateKey = validatePrivateKey(chainName, privateKeyOrMnemonic);
+    const isMnemonic = validateMnemonic(privateKeyOrMnemonic);
+
+    if (isMnemonic) {
+        try {
+            privateKey = await getPrivateKeyFromMnemonic(chainName, privateKeyOrMnemonic);
+
+        } catch (error) {
+            mnemonicError = true;
+        }
+
+    } else {
+        privateKey = privateKeyOrMnemonic;
+    }
+
+    if (!(isPrivateKey || isMnemonic)) {
+        const importWalletInvalidKeyMessage = `⚠️ Invalid private key or mnemonic phrase. Please try again or go back to the starting page.`;
         const importWalletInvalidKeyKeyboard = {
             inline_keyboard: [[
                 { text: "🔙 Back", callback_data: "start" }
@@ -105,7 +121,7 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
         await bot.sendMessage(chatId, importWalletInvalidKeyMessage, { reply_markup: importWalletInvalidKeyKeyboard });
         return;
     }
-    
+
     const publicAddress = getAddressFromPrivateKey(chainName, privateKey);
 
     // Check if the wallet is already imported by another user
@@ -156,24 +172,4 @@ export async function handleImportWalletKeyInput(chatId, privateKey) {
         editUserState(chatId, "IDLE"),
         editItemInDb(userTable, { userId: chatId }, { currentChain: chainName })
     ]);
-}
-
-function validatePrivateKey(chainName, privateKey) {
-    switch (chainName) {
-        case "Ethereum":
-            return validateEvmPrivateKey(privateKey);
-
-        default:
-            throw new Error(`validatePrivateKey: Chain ${chainName} not supported`);
-    }
-}
-
-function getAddressFromPrivateKey(chainName, privateKey) {
-    switch (chainName) {
-        case "Ethereum":
-            return getEvmAddressFromPrivateKey(privateKey);
-
-        default:
-            throw new Error(`getAddressFromPrivateKey: Chain ${chainName} not supported`);
-    }
 }
