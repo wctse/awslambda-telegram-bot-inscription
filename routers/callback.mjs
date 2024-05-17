@@ -1,6 +1,6 @@
-import { handleStart } from "../handlers/start/start.mjs";
-import { handleStartCreateWalletInitiate, handleStartCreateWalletChainName } from "../handlers/start/createWallet.mjs";
-import { handleStartImportWalletInitiate, handleStartImportWalletChainName } from "../handlers/start/importWallet.mjs";
+import { handleStart } from "../handlers/start.mjs";
+import { handleStartCreateWalletInitiate, handleStartCreateWalletChainName } from "../handlers/wallets/createWallet.mjs";
+import { handleStartImportWalletInitiate, handleStartImportWalletChainName } from "../handlers/wallets/importWallet.mjs";
 import { handleMainMenu, mainMenuWalletBackward, mainMenuWalletForward } from "../handlers/mainMenu.mjs";
 import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleMintRepeat }  from '../handlers/mint/index.mjs'
 import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";

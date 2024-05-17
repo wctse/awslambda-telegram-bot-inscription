@@ -1,6 +1,6 @@
 
 import { handleMintTickerInput, handleMintAmountInput } from  '../handlers/mint/index.mjs'
-import { handleStartImportWalletKeyInput } from '../handlers/start/importWallet.mjs';
+import { handleStartImportWalletKeyInput } from '../handlers/wallets/importWallet.mjs';
 import { handleTransferTickerInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
 import { handleCustomDataInput } from '../handlers/customData.mjs';
 import { handleMultiMintAmountInput, handleMultiMintTickerInput, handleMultiMintTimesInput } from '../handlers/multiMint.mjs';

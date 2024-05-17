@@ -5,6 +5,9 @@ import { addItemToDynamoDB, checkItemsExistInDb, editItemInDb } from '../../comm
 import { editUserState } from '../../common/db/userDb.mjs';
 import { chunkArray } from '../../common/utils.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
+import { createEvmWallet } from '../../blockchains/evm/common/wallets.mjs';
+
+const userTable = process.env.USER_TABLE_NAME;
 
 /**
  * Create wallet step 1: Prompts the user to select the blockchain
@@ -64,11 +67,7 @@ export async function handleStartCreateWalletChainName(chatId, chainName) {
     
     await bot.sendMessage(chatId, "⏳ Creating wallet...");
     
-    // Generate a new Ethereum wallet
-    const wallet = ethers.Wallet.createRandom();
-    const publicAddress = wallet.address;
-    const privateKey = wallet.privateKey;
-
+    const {publicAddress, privateKey} = await routeCreateWallet(chainName);
     const encryptedPrivateKey = await encrypt(privateKey);
 
     // DynamoDB wallet data table item
@@ -109,4 +108,14 @@ export async function handleStartCreateWalletChainName(chatId, chainName) {
         editUserState(chatId, "IDLE"),
         editItemInDb(userTable, { userId: chatId }, { currentChain: chainName })
     ]);
+}
+
+function routeCreateWallet(chainName) {
+    switch (chainName) {
+        case "Ethereum":
+            return createEvmWallet();
+
+        default:
+            return handleStartCreateWalletChainName;
+    }
 }

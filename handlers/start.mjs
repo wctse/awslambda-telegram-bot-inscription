@@ -1,8 +1,7 @@
-import { bot } from '../../common/bot.mjs';
-import { addItemToDynamoDB, getItemsFromDb, checkItemsExistInDb } from '../../common/db/dbOperations.mjs';
-import { editUserState } from '../../common/db/userDb.mjs';
-import { handleMainMenu } from '../mainMenu.mjs';
-import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
+import { bot } from '../common/bot.mjs';
+import { addItemToDynamoDB, getItemsFromDb, checkItemsExistInDb } from '../common/db/dbOperations.mjs';
+import { editUserState } from '../common/db/userDb.mjs';
+import { handleMainMenu } from './mainMenu.mjs';
 
 /**
  * Handles the /start command. If user has a wallet, show the main menu. Otherwise, prompt the user to create or import a wallet.

@@ -130,9 +130,12 @@ export async function getCurrentGasPrice(chainName, decimals=null, return_usd=fa
     switch (chainName) {
         case 'Ethereum':
             return await getEvmGasPrice(chainName, decimals, return_usd);
+        
+        case 'TON':
+            return 
             
         default:
-            throw new Error('Chain not supported');
+            throw new Error(`getCurrentGasPrice: Chain ${chainName} not supported`);
     }
 }
 
@@ -148,7 +151,7 @@ export async function getUnits(chainName) {
     };
 
     if (!gasUnitMapping[chainName]) {
-        throw new Error('Chain not supported');
+        throw new Error(`getUnits: Chain ${chainName} not supported`);
     }
 
     return gasUnitMapping[chainName];
