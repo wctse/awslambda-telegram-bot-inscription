@@ -1,5 +1,4 @@
 import AWS from 'aws-sdk';
-
 const dynamoDB = new AWS.DynamoDB.DocumentClient();
 
 // Add an item to a DynamoDB table
@@ -18,11 +17,11 @@ export async function addItemToDynamoDB(tableName, item) {
 }
 
 // Edit specified attributes of an item in a DynamoDB table
-export async function editItemInDynamoDB(tableName, key, updates, checkExists = false) {
+export async function editItemInDb(tableName, key, updates, checkExists = false) {
     if (checkExists) {
-        const item = await getItemFromDynamoDB(tableName, key);
+        const item = await getItemFromDb(tableName, key);
         if (!item) {
-            console.warn(`Function editItemInDynamoDB: Item with key ${JSON.stringify(key)} does not exist in table ${tableName}`);
+            console.warn(`Function editItemInDb: Item with key ${JSON.stringify(key)} does not exist in table ${tableName}`);
             return;
         }
     }
@@ -48,7 +47,7 @@ export async function editItemInDynamoDB(tableName, key, updates, checkExists = 
 }
 
 // Delete an item from a DynamoDB table
-export async function deleteItemFromDynamoDB(tableName, key) {
+export async function deleteItemFromDb(tableName, key) {
     const params = {
         TableName: tableName,
         Key: key
@@ -63,7 +62,7 @@ export async function deleteItemFromDynamoDB(tableName, key) {
 }
 
 export async function deleteAttributesExceptKeys(tableName, key) {
-    const item = await getItemFromDynamoDB(tableName, key);
+    const item = await getItemFromDb(tableName, key);
 
     if (!item) {
         console.warn(`Function deleteAttributesExceptKeys: Item with key ${JSON.stringify(key)} does not exist in table ${tableName}`);
@@ -88,7 +87,7 @@ export async function deleteAttributesExceptKeys(tableName, key) {
 }
 
 // Get an item from a DynamoDB table by its key
-export async function getItemFromDynamoDB(tableName, key) {
+export async function getItemFromDb(tableName, key) {
     const params = {
         TableName: tableName,
         Key: key
@@ -114,9 +113,9 @@ export async function getItemFromDynamoDB(tableName, key) {
  * @param {string} indexName The name of the secondary index to use, null if not using a secondary index
  * @returns {Array} An array of items from the table
 */ 
-export async function getItemsFromDynamoDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName = null, sortKeyValue = null, indexName = null) {
+export async function getItemsFromDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName = null, sortKeyValue = null, indexName = null) {
     if (!partitionKeyName || !partitionKeyValue) {
-        throw new Error('Function getItemsFromDynamoDb requires at least partition key parameters to be specified');
+        throw new Error('Function getItemsFromDb requires at least partition key parameters to be specified');
     }
 
     const params = {
@@ -156,83 +155,6 @@ export async function getItemsFromDynamoDb(tableName, partitionKeyName, partitio
  * @param {string} indexName The name of the secondary index to use, null if not using a secondary index
  * @returns {boolean} Whether any item associated to the given keys and index exists in the table
  */
-export async function checkItemsExistInDynamoDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName = null, sortKeyValue = null, indexName = null) {
-    return getItemsFromDynamoDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName, sortKeyValue, indexName).then(items => items.length > 0);
-}
-
-// Update the user state in the user table
-export async function editUserState(userId, userState) {
-    const userTable = process.env.USER_TABLE_NAME;
-
-    const key = {
-        userId: userId
-    };
-
-    const updates = {
-        userState: userState
-    };
-
-    await editItemInDynamoDB(userTable, key, updates);
-}
-
-// Get the user state from the user table
-export async function getUserState(userId) {
-    const userTable = process.env.USER_TABLE_NAME;
-    const userItems = await getItemsFromDynamoDb(userTable, `userId`, userId);
-
-    if (userItems.length === 0) {
-        return null;
-    }
-
-    return userItems[0].userState;
-}
-
-export async function getCurrentChain(userId) {
-    const userTable = process.env.USER_TABLE_NAME;
-    const userItems = await getItemsFromDynamoDb(userTable, `userId`, userId);
-    
-    if (userItems.length === 0) {
-        return null;
-    }
-
-    return userItems[0].currentChain;
-}
-
-// Get the wallet address for a specific user ID
-// TODO: Delete this function and use getWalletAddress instead
-export async function getWalletAddressByUserId(chatId) {
-    const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletItems = getItemsFromDynamoDb(walletTable, `userId`, chatId);
-
-    if (walletItems.length === 0) {
-        return null;
-    }
-
-    return walletItems[0].publicAddress;
-}
-
-export async function getWalletAddress(chatId, chainName) {
-    const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletItems = await getItemsFromDynamoDb(walletTable, `userId`, chatId);
-
-    if (!walletItems) {
-        return null;
-    }
-
-    const walletItem = walletItems.find(item => item.chainName === chainName);
-    return walletItem ? walletItem.publicAddress : null;
-}
-
-export async function updateWalletLastActiveAt(userId, publicAddress) {
-    const walletTable = process.env.WALLET_TABLE_NAME;
-    const key = {
-        userId: userId,
-        publicAddress: publicAddress
-    };
-
-    const updates = {
-        lastActiveAt: Date.now()
-    };
-
-    await editItemInDynamoDB(walletTable, key, updates);
+export async function checkItemsExistInDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName = null, sortKeyValue = null, indexName = null) {
+    return getItemsFromDb(tableName, partitionKeyName, partitionKeyValue, sortKeyName, sortKeyValue, indexName).then(items => items.length > 0);
 }

@@ -1,9 +1,11 @@
 import { ethers } from 'ethers';
-import { bot } from '../../helpers/bot.mjs';
-import { encrypt } from '../../helpers/kms.mjs';
-import { addItemToDynamoDB, getWalletAddress, checkItemsExistInDynamoDb, editUserState } from '../../helpers/dynamoDB.mjs';
-import { getItemFromDynamoDB, editItemInDynamoDB } from '../../helpers/dynamoDB.mjs';
-import { chunkArray } from '../../helpers/commonUtils.mjs';
+import { bot } from '../../common/bot.mjs';
+import { encrypt } from '../../common/kms.mjs';
+import { addItemToDynamoDB, checkItemsExistInDb } from '../../common/db/dbOperations.mjs';
+import { getWalletAddress } from '../../common/db/walletDb.mjs';
+import { editUserState } from '../../common/db/userDb.mjs';
+import { getItemFromDb, editItemInDb } from '../../common/db/dbOperations.mjs';
+import { chunkArray } from '../../common/utils.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
 const userTable = process.env.USER_TABLE_NAME;
@@ -76,7 +78,7 @@ export async function handleStartImportWalletChainName(chatId, chainName) {
     }
     
     await Promise.all([
-        editItemInDynamoDB(processTable, { userId: chatId } , { startImportWalletChainName: chainName }),
+        editItemInDb(processTable, { userId: chatId } , { startImportWalletChainName: chainName }),
         bot.sendMessage(chatId, importWalletKeyMessage, { reply_markup: importWalletKeyKeyboard, parse_mode: "Markdown" }),
         editUserState(chatId, "START_IMPORT_WALLET_CHAIN_NAME_INPUT"),
     ])
@@ -104,10 +106,10 @@ export async function handleStartImportWalletKeyInput(chatId, privateKey) {
     
     const wallet = new ethers.Wallet(privateKey);
     const publicAddress = wallet.address;
-    const chainName = (await getItemFromDynamoDB(processTable, { userId: chatId })).startImportWalletChainName;
+    const chainName = (await getItemFromDb(processTable, { userId: chatId })).startImportWalletChainName;
 
     // Check if the wallet is already imported by another user
-    const walletExists = await checkItemsExistInDynamoDb(walletTable, `publicAddress`, publicAddress, null, null, "publicAddress-index");
+    const walletExists = await checkItemsExistInDb(walletTable, `publicAddress`, publicAddress, null, null, "publicAddress-index");
 
     if (walletExists) {
         const walletExistsMessage = `⚠️ This wallet is already imported by you or another user. Please use a different wallet.`;
@@ -152,6 +154,6 @@ export async function handleStartImportWalletKeyInput(chatId, privateKey) {
         bot.sendMessage(chatId, importWalletSuccessMessage, { reply_markup: importWalletSuccessKeyboard, parse_mode: "Markdown" }),
         addItemToDynamoDB(walletTable, newWalletItem),
         editUserState(chatId, "IDLE"),
-        editItemInDynamoDB(userTable, { userId: chatId }, { currentChain: chainName })
+        editItemInDb(userTable, { userId: chatId }, { currentChain: chainName })
     ]);
 }

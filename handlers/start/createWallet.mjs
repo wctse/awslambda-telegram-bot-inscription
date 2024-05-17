@@ -1,8 +1,9 @@
 import { ethers } from 'ethers';
-import { bot, mainMenuKeyboard } from '../../helpers/bot.mjs';
-import { encrypt } from '../../helpers/kms.mjs';
-import { addItemToDynamoDB, checkItemsExistInDynamoDb, editUserState } from '../../helpers/dynamoDB.mjs';
-import { chunkArray } from '../../helpers/commonUtils.mjs';
+import { bot, mainMenuKeyboard } from '../../common/bot.mjs';
+import { encrypt } from '../../common/kms.mjs';
+import { addItemToDynamoDB, checkItemsExistInDb, editItemInDb } from '../../common/db/dbOperations.mjs';
+import { editUserState } from '../../common/db/userDb.mjs';
+import { chunkArray } from '../../common/utils.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
 /**
@@ -44,7 +45,7 @@ export async function handleStartCreateWalletInitiate(chatId) {
  */
 export async function handleStartCreateWalletChainName(chatId, chainName) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletExistsForUser = await checkItemsExistInDynamoDb(walletTable, `userId`, chatId );
+    const walletExistsForUser = await checkItemsExistInDb(walletTable, `userId`, chatId );
 
     if (walletExistsForUser) {
         console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");
@@ -106,6 +107,6 @@ export async function handleStartCreateWalletChainName(chatId, chainName) {
         })(),
         addItemToDynamoDB(walletTable, newWalletItem),
         editUserState(chatId, "IDLE"),
-        editItemInDynamoDB(userTable, { userId: chatId }, { currentChain: chainName })
+        editItemInDb(userTable, { userId: chatId }, { currentChain: chainName })
     ]);
 }

@@ -1,4 +1,4 @@
-import { bot, mainMenuKeyboard } from '../helpers/bot.mjs';
+import { bot, mainMenuKeyboard } from '../common/bot.mjs';
 
 export async function handleInvalidInput(chatId) {
     const invalidInputMessage = "⚠️ I am sorry. I don't understand that. Please try again.";

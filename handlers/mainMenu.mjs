@@ -1,21 +1,26 @@
-import { bot } from '../helpers/bot.mjs';
-import { getCurrentGasPrice } from '../helpers/ethers.mjs';
-import { round } from '../helpers/commonUtils.mjs';
-import { editItemInDynamoDB, editUserState, getCurrentChain, getWalletAddress } from '../helpers/dynamoDB.mjs';
+import { bot } from '../common/bot.mjs';
+import { getCurrentGasPrice, getUnits } from '../services/processServices.mjs';
+import { editItemInDb } from '../common/db/dbOperations.mjs';
+import { getWalletAddress } from '../common/db/walletDb.mjs';
+import { editUserState, getCurrentChain } from '../common/db/userDb.mjs';
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
 const userTable = process.env.USER_TABLE_NAME;
 
 export async function handleMainMenu(chatId) {
     const chainName = await getCurrentChain(chatId);
-    const walletAddress = await getWalletAddress(chatId, chainName);
-    const currentGasPrice = round(await getCurrentGasPrice(), 4);
+
+    const [walletAddress, gasPrice, [assetName, gasUnitName]] = await Promise.all([
+        getWalletAddress(chatId, chainName),
+        getCurrentGasPrice(chainName, 0),
+        getUnits(chainName)
+    ]);
 
     const mainMenuMessage = 
-    `🐉 Welcome to Inscription Dragon, the omnichain bot for inscriptions! \n` + 
+    `🐉 Welcome to Inscription Dragon, the omnichain bot for inscriptions. \n` + 
     `\n` +
     `Current chain: ${chainName}\n` +
-    `Current gas price: ${currentGasPrice} Gwei\n` +
+    `Current gas price: ${gasPrice} ${gasUnitName}\n` +
     `\n` +
     `Choose an option:`;
 
@@ -39,7 +44,7 @@ export async function handleMainMenu(chatId) {
             { text: "📝 Custom data", callback_data: "custom_data"}
         ],
         [
-            { text: "🪙 Send ETH", callback_data: "send_eth" },
+            { text: `🪙 Send ${assetName}`, callback_data: "send_asset" },
         ],
         [
             { text: "💰 View Wallet", callback_data: "view_wallet" },
@@ -75,7 +80,7 @@ export async function mainMenuWalletBackward(chatId, currentChainName) {
     }
 
     const previousChainName = chainNames[previousChainIndex];
-    await editItemInDynamoDB(userTable, { userId: chatId }, { currentChain: previousChainName });
+    await editItemInDb(userTable, { userId: chatId }, { currentChain: previousChainName });
 
     await handleMainMenu(chatId);
 }
@@ -90,7 +95,7 @@ export async function mainMenuWalletForward(chatId, currentChainName) {
     }
 
     const nextChainName = chainNames[nextChainIndex];
-    await editItemInDynamoDB(userTable, { userId: chatId }, { currentChain: nextChainName });
+    await editItemInDb(userTable, { userId: chatId }, { currentChain: nextChainName });
 
     await handleMainMenu(chatId);
 }

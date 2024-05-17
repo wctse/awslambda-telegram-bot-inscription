@@ -1,19 +1,15 @@
-import { bot, divider, mainMenuKeyboard } from "../helpers/bot.mjs";
-import { addItemToDynamoDB, editItemInDynamoDB, editUserState, getItemFromDynamoDB, getWalletAddressByUserId, updateWalletLastActiveAt } from "../helpers/dynamoDB.mjs";
-import { getCurrentGasPrice, getEthBalance, sendTransaction } from "../helpers/ethers.mjs";
-import { decrypt } from "../helpers/kms.mjs";
-import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
-import { round } from "../helpers/commonUtils.mjs";
-import { getEthPrice } from "../helpers/coingecko.mjs";
-import { hexlify, toUtf8Bytes } from 'ethers';
+import { bot, divider, mainMenuKeyboard } from "../common/bot.mjs";
+import { addItemToDynamoDB, editItemInDb, getItemFromDb } from "../common/db/dbOperations.mjs";
+import { editUserState, getCurrentChain } from '../common/db/userDb.mjs';
+import { getAssetBalance, getExplorerUrl, getUnits, validateEnoughBalance, validateTransaction } from "../services/processServices.mjs";
+import { sendTransaction } from "../services/transactionServices.mjs";
 
-const walletTable = process.env.WALLET_TABLE_NAME;
 const processTable = process.env.PROCESS_TABLE_NAME;
 const transactionTable = process.env.TRANSACTION_TABLE_NAME;
 
 export async function handleCustomDataInitiate(chatId) {
-    const publicAddress = await getWalletAddressByUserId(chatId);
-    const ethBalance = await getEthBalance(publicAddress);
+    const chainName = await getCurrentChain(chatId);
+    const [assetBalance, publicAddress] = await getAssetBalance(chatId, chainName, true);
 
     const customDataDescriptionMessage = 
         "📝 *Custom data*\n" +
@@ -22,11 +18,11 @@ export async function handleCustomDataInitiate(chatId) {
         divider +
         "\n";
 
-    if (ethBalance == 0) {
-        const noEthMessage = customDataDescriptionMessage + 
+    if (assetBalance == 0) {
+        const noAssetMessage = customDataDescriptionMessage + 
             "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
         
-        await bot.sendMessage(chatId, noEthMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
+        await bot.sendMessage(chatId, noAssetMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
     }
     
@@ -43,24 +39,18 @@ export async function handleCustomDataInitiate(chatId) {
 
     await Promise.all([
         editUserState(chatId, "CUSTOM_DATA_INITIATED"),
+        editItemInDb(processTable, { userId: chatId }, { customDataChain: chainName, customDataWallet: publicAddress}),
         bot.sendMessage(chatId, customDataInputMessage, { reply_markup: customDataInputKeyboard, parse_mode: 'Markdown'})
     ]);
 }
 
 export async function handleCustomDataInput(chatId, customData) {
-    const publicAddress = await getWalletAddressByUserId(chatId);
-    const [walletItem, currentGasPrice, currentEthPrice, ethBalance] = await Promise.all([
-        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: publicAddress}),
-        getCurrentGasPrice(),
-        getEthPrice(),
-        getEthBalance(publicAddress)
-    ]);
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
+    const publicAddress = processItem.customDataWallet;
+    const chainName = processItem.customDataChain;
 
-    const chainName = walletItem.chainName;
-    const hexData = hexlify(toUtf8Bytes(customData))
-
-    const estimatedGasCost = round(1e-9 * (currentGasPrice + 1) * (21000 + customData.length * 16), 8);
-    const estimatedGasCostUsd = round(estimatedGasCost * currentEthPrice, 2);
+    const [hasEnoughBalance, [_assetBalance, currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, customData, true, [null, 0, 4, 2]);
+    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     let customDataReviewMessage = 
         `⌛ Please review the inscription information below. \n` +
@@ -68,15 +58,14 @@ export async function handleCustomDataInput(chatId, customData) {
         `Wallet: \`${publicAddress}\`\n` +
         `Chain: \`${chainName}\`\n` +
         `Data: \`${customData}\`\n` +
-        `Hex data: \`${hexData}\`\n` +
         `\n` +
         `Current Gas Price: ${currentGasPrice} Gwei\n` +
-        `Estimated Cost: ${estimatedGasCost} ETH (\$${estimatedGasCostUsd })`;
+        `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
     
-    if (ethBalance < estimatedGasCost) {
+    if (!hasEnoughBalance) {
         customDataReviewMessage += "\n\n" +    
-            "⛔ WARNING: The ETH balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. " +
-            "Please consider waiting for the gas price to drop, or transfer more ETH to the wallet.";
+            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the transaction is likely to fail. ` +
+            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
     }
 
     customDataReviewMessage += "\n\n" +
@@ -93,51 +82,36 @@ export async function handleCustomDataInput(chatId, customData) {
 
     const currentTime = Date.now();
     await Promise.all([
-        editItemInDynamoDB(processTable, { userId: chatId }, { customDataData: customData, customDataReviewPromptedAt: currentTime, customDataGasPrice: currentGasPrice }),
+        editItemInDb(processTable, { userId: chatId }, { customDataData: customData, customDataReviewPromptedAt: currentTime, customDataGasPrice: currentGasPrice }),
         editUserState(chatId, 'CUSTOM_DATA_DATA_INPUTTED'),
         bot.sendMessage(chatId, customDataReviewMessage, { reply_markup: customDataConfirmKeyboard, parse_mode: 'Markdown' })
     ]);
 }
 
 export async function handleCustomDataConfirm(chatId) {
-    const walletAddress = await getWalletAddressByUserId(chatId);
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
 
-    const [walletItem, processItem, currentGasPrice] = await Promise.all([
-        getItemFromDynamoDB(walletTable, { userId: chatId, publicAddress: walletAddress}),
-        getItemFromDynamoDB(processTable, { userId: chatId }),
-        getCurrentGasPrice()
-    ]);
+    const publicAddress = processItem.customDataWallet;
+    const chainName = processItem.customDataChain;
+    const prevGasPrice = processItem.customDataGasPrice;
+    const reviewPromptedAt = processItem.customDataReviewPromptedAt;
 
     const data = processItem.customDataData;
 
-    // Check for time elapsed, if more than 1 minute, go back to step 4 and prompt the user again to confirm
-    if (Date.now() - processItem.customDataReviewPromptedAt > 60000) {
-        await handleCustomDataRetry(chatId, 'timeout');
+    const errorType = await validateTransaction(chainName, prevGasPrice, 0.1, reviewPromptedAt, 60);
+    if (errorType) {
+        await handleCustomDataRetry(chatId, errorType);
         return;
     }
 
-    // Check for current gas prices. If the gas price is at least 10% more expensive, go back to step 4 and prompt the user again to confirm
-    const previousGasPrice = processItem.customDataGasPrice;
-    if (currentGasPrice > previousGasPrice * 1.1) {
-        await handleCustomDataRetry(chatId, 'expensive_gas');
-        return;
-    }
-
-    const encryptedPrivateKey = walletItem.encryptedPrivateKey;
-    const privateKey = await decrypt(encryptedPrivateKey);
-    const gasSetting = walletItem.walletSettings.gas;
-
-    const [txResponse] = await Promise.all([
-        sendTransaction(privateKey, data, 'zero', gasSetting),
-        updateWalletLastActiveAt(chatId, walletAddress)
-    ]);
+    const txResponse = await sendTransaction(chatId, chainName, data)
 
     const txHash = txResponse.hash;
     const txTimestamp = txResponse.timestamp;
 
     const addTransactionItemPromise = addItemToDynamoDB(transactionTable, { 
         userId: chatId,
-        publicAddress: walletAddress,
+        publicAddress: publicAddress,
         transactionHash: txHash,
         txType: 'custom_data',
         timestamp: txTimestamp,
@@ -146,9 +120,7 @@ export async function handleCustomDataConfirm(chatId) {
     
     
     // Send confirmation message to the user
-    const url = 
-        config.TESTNET ? "https://sepolia.etherscan.io/tx/" + txHash :
-        "https://etherscan.io/tx/" + txHash;
+    const url = await getExplorerUrl(chainName, txHash);
 
     const transactionSentMessage = 
         `🚀 Your custom data transaction has been sent to the blockchain.\n` +
@@ -186,12 +158,12 @@ export async function handleCustomDataRetry(chatId, retryReason) {
         console.warn('Unknown reason for transfer confirmation retry: ', retryReason);
     }
 
-    const data = (await getItemFromDynamoDB(processTable, { userId: chatId })).customDataData;
+    const data = (await getItemFromDb(processTable, { userId: chatId })).customDataData;
     await handleCustomDataInput(chatId, data);
 }
 
 export async function handleCustomDataRepeat(chatId) {
-    const data = (await getItemFromDynamoDB(processTable, { userId: chatId })).customDataData;
+    const data = (await getItemFromDb(processTable, { userId: chatId })).customDataData;
     await handleCustomDataInput(chatId, data);
 }
 

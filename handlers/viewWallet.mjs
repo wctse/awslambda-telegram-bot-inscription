@@ -1,40 +1,33 @@
-import { balanceCalculationMessage, bot } from '../helpers/bot.mjs';
-import { getEthPrice } from '../helpers/coingecko.mjs';
-import { getItemsFromDynamoDb } from '../helpers/dynamoDB.mjs';
-import { getEthBalance } from '../helpers/ethers.mjs';
-import { round } from '../helpers/commonUtils.mjs';
-import { getIerc20Balance } from '../helpers/ierc20.mjs';
+import { balanceCalculationMessage, bot } from '../common/bot.mjs';
+import { getAssetBalanceUsd, getInscriptionBalance, getUnits } from '../services/processServices.mjs';
+import { getCurrentChain } from '../common/db/userDb.mjs';
 
 export async function handleViewWallet(chatId) {
-    const walletTable = process.env.WALLET_TABLE_NAME;
-
-    const userItem = await getItemsFromDynamoDb(walletTable, 'userId', chatId); // TODO: When multiple wallets is implemented, this should be changed to get all wallets for a user
-    const publicAddress = userItem[0].publicAddress;
-    const chainName = userItem[0].chainName;
-    const ethBalance = round(await getEthBalance(publicAddress), 6);
-    const ethBalanceUsd = round(ethBalance * await getEthPrice(), 2);
-    
-    const ierc20Balances = await getIerc20Balance(publicAddress);
+    const chainName = await getCurrentChain(chatId);
+    const [[assetBalance, assetBalanceUsd, publicAddress], [assetName, _gasUnitName]] = await Promise.all([
+        getAssetBalanceUsd(chatId, chainName, [4, 2], true),
+        getUnits(chainName),
+    ]);
 
     let viewWalletMessage = 
         `Wallet information:\n` +
         `\n` +
         `Chain: \`${chainName}\`\n` +
         `Address: \`${publicAddress}\`\n` +
-        `ETH Balance: ${ethBalance} ETH (\$${ethBalanceUsd})\n` +
-        `\n` +
-        `*ierc-20 Balances*\n`;
+        `ETH Balance: ${assetBalance} ${assetName} (\$${assetBalanceUsd})\n` +
+        `\n`;
 
-    for (const[ierc20Ticker, ierc20Balance] of Object.entries(ierc20Balances)) {
-        viewWalletMessage += `${ierc20Ticker}: \`${ierc20Balance}\`\n`;
-    }
+    const inscriptionBalances = await getInscriptionBalance(chatId, publicAddress, chainName);
 
-    if (Object.keys(ierc20Balances).length === 0) {
-        viewWalletMessage += `None\n`;
-    }
+    const protocolSections = Object.entries(inscriptionBalances).map(([protocol, protocolObj]) => {
+        const tickerBalances = Object.entries(protocolObj)
+            .map(([ticker, balance]) => `${ticker}: \`${balance}\``)
+            .join('\n');
+        
+        return `*${protocol} Balances*\n${tickerBalances}`;
+        }).join('\n\n');
 
-    viewWalletMessage = viewWalletMessage.slice(0, -1); // Remove last newline
-    viewWalletMessage += balanceCalculationMessage;
+    viewWalletMessage += protocolSections + balanceCalculationMessage;
 
     const viewWalletKeyboard = {
         inline_keyboard: [[

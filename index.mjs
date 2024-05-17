@@ -2,8 +2,9 @@ import { routeMessage } from './routers/message.mjs';
 import { routeCallback } from './routers/callback.mjs';
 import { routeCommand } from './routers/command.mjs';
 import { routeInternalEvent } from './routers/internalEvent.mjs';
-import { deleteMessage } from './helpers/bot.mjs';
-import { deleteAttributesExceptKeys, editItemInDynamoDB, editUserState, getUserState } from './helpers/dynamoDB.mjs';
+import { deleteMessage } from './common/bot.mjs';
+import { deleteAttributesExceptKeys, editItemInDb } from './common/db/dbOperations.mjs';
+import { editUserState, getUserState } from './common/db/userDb.mjs';
 
 export async function handler(event, context) {
     console.info("Received event:", JSON.stringify(event, null, 2));
@@ -14,7 +15,7 @@ export async function handler(event, context) {
 
     if (update.source) {
         await Promise.all([
-            editItemInDynamoDB(userTable, { userId: update.customData.userId }, { lastActiveAt: Date.now() }, true),
+            editItemInDb(userTable, { userId: update.customData.userId }, { lastActiveAt: Date.now() }, true),
             routeInternalEvent(update.source, update.message, update.customData)
         ]);
 
@@ -29,7 +30,7 @@ export async function handler(event, context) {
             : routeMessage; // Otherwise, use routeMessage
         
         await Promise.all([
-            editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true),
+            editItemInDb(userTable, { userId: chatId }, { lastActiveAt: Date.now() }, true),
             routingFunction(chatId, text, await getUserState(chatId))
         ]);
         
@@ -40,7 +41,7 @@ export async function handler(event, context) {
         const data = callbackQuery.data;
 
         let callbackPromises = [
-            editItemInDynamoDB(userTable, { userId: chatId }, { lastActiveAt: Date.now() }),
+            editItemInDb(userTable, { userId: chatId }, { lastActiveAt: Date.now() }),
         ];
 
         let routeCallbackPromise = routeCallback(chatId, data, await getUserState(chatId), messageId);

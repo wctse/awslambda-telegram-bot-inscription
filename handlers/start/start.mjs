@@ -1,5 +1,6 @@
-import { bot } from '../../helpers/bot.mjs';
-import { addItemToDynamoDB, getItemsFromDynamoDb, checkItemsExistInDynamoDb, editUserState } from '../../helpers/dynamoDB.mjs';
+import { bot } from '../../common/bot.mjs';
+import { addItemToDynamoDB, getItemsFromDb, checkItemsExistInDb } from '../../common/db/dbOperations.mjs';
+import { editUserState } from '../../common/db/userDb.mjs';
 import { handleMainMenu } from '../mainMenu.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
@@ -13,13 +14,13 @@ export async function handleStart(chatId) {
     const processTable = process.env.PROCESS_TABLE_NAME;
     const walletTable = process.env.WALLET_TABLE_NAME;
 
-    const userExists = await checkItemsExistInDynamoDb(userTable, `userId`, chatId );
+    const userExists = await checkItemsExistInDb(userTable, `userId`, chatId );
 
     if (userExists) {
-        const userWallets = await getItemsFromDynamoDb(walletTable, `userId`, chatId);
+        const userWallets = await getItemsFromDb(walletTable, `userId`, chatId);
 
-        // If user has wallets for all supported chains, he cannot create or import more wallets
-        if ((userWallets?.length ?? 0) >= config.CHAINS.length) {
+        // If user has wallets in any chain, show the main menu
+        if (userWallets?.length > 0) {
             await handleMainMenu(chatId);
             return;
         }

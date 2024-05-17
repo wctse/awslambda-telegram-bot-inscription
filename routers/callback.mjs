@@ -2,16 +2,18 @@ import { handleStart } from "../handlers/start/start.mjs";
 import { handleStartCreateWalletInitiate, handleStartCreateWalletChainName } from "../handlers/start/createWallet.mjs";
 import { handleStartImportWalletInitiate, handleStartImportWalletChainName } from "../handlers/start/importWallet.mjs";
 import { handleMainMenu, mainMenuWalletBackward, mainMenuWalletForward } from "../handlers/mainMenu.mjs";
-import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleMintRepeat } from "../handlers/mint.mjs";
+import { handleMintInitiate, handleMintProtocolInput, handleMintConfirm, handleMintRepeat }  from '../handlers/mint/index.mjs'
 import { handleTransferConfirm, handleTransferInitiate, handleTransferTickerInput } from "../handlers/transfer.mjs";
 import { handleViewWallet } from "../handlers/viewWallet.mjs";
 import { handleSettings, handleSettingsGas } from "../handlers/settings.mjs";
 import { handleCustomDataConfirm, handleCustomDataInitiate, handleCustomDataRepeat } from "../handlers/customData.mjs";
 import { handleMultiMintStop, handleMultiMintConfirm, handleMultiMintInitiate, handleMultiMintProtocolInput, handleMultiMintTimesInput } from "../handlers/multiMint.mjs";
-import { handleSendEthConfirm, handleSendEthInitiate } from "../handlers/sendEth.mjs";
+import { handleSendAssetConfirm, handleSendAssetInitiate } from "../handlers/sendAsset/index.mjs";
 import { handleInvalidInput } from "../handlers/invalidInput.mjs";
 
 export async function routeCallback(chatId, data, userState, messageId) {
+    console.info('Callback query received: ', data, ' from chatId: ', chatId, ' with user state: ', userState);
+    
     // -- START -- //
     // Create wallet in start
     if (data === 'start_create_wallet' && userState === 'IDLE') {
@@ -41,7 +43,6 @@ export async function routeCallback(chatId, data, userState, messageId) {
     )) {
         await handleStart(chatId);
     }
-
 
     // -- GENERIC -- //
     // Main menu or back to main menu in multiple interfaces
@@ -85,9 +86,9 @@ export async function routeCallback(chatId, data, userState, messageId) {
         await handleCustomDataInitiate(chatId);
     }
 
-    // Send ETH button
-    else if (data === 'send_eth' && userState === 'IDLE') {
-        await handleSendEthInitiate(chatId);
+    // Send Asset button
+    else if (data === 'send_asset' && userState === 'IDLE') {
+        await handleSendAssetInitiate(chatId);
     }
 
     // View wallet button
@@ -134,18 +135,18 @@ export async function routeCallback(chatId, data, userState, messageId) {
     }
 
     // 10 times in multi-mint step 4
-    else if (data === 'multi_mint_times_10' && userState === 'MULTI_MINT_TICKER_INPUTTED') {
-        await handleMultiMintTimesInput(chatId, 10);
+    else if (data === 'multi_mint_times_10' && userState === 'MULTI_MINT_AMOUNT_INPUTTED') {
+        await handleMultiMintTimesInput(chatId, "10");
     }
 
     // 50 times in multi-mint step 4
-    else if (data === 'multi_mint_times_50' && userState === 'MULTI_MINT_TICKER_INPUTTED') {
-        await handleMultiMintTimesInput(chatId, 50);
+    else if (data === 'multi_mint_times_50' && userState === 'MULTI_MINT_AMOUNT_INPUTTED') {
+        await handleMultiMintTimesInput(chatId, "50");
     }
 
     // 100 times in multi-mint step 4
-    else if (data === 'multi_mint_times_100' && userState === 'MULTI_MINT_TICKER_INPUTTED') {
-        await handleMultiMintTimesInput(chatId, 100);
+    else if (data === 'multi_mint_times_100' && userState === 'MULTI_MINT_AMOUNT_INPUTTED') {
+        await handleMultiMintTimesInput(chatId, "100");
     }
 
     // Confirm in multi-mint step 5
@@ -180,8 +181,8 @@ export async function routeCallback(chatId, data, userState, messageId) {
     }
 
     // -- SEND ETH -- //
-    else if (data === 'send_eth_confirm' && userState === 'SEND_ETH_AMOUNT_INPUTTED') {
-        await handleSendEthConfirm(chatId);
+    else if (data === 'send_asset_confirm' && userState === 'SEND_ASSET_AMOUNT_INPUTTED') {
+        await handleSendAssetConfirm(chatId);
     }
     
 

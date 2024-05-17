@@ -1,6 +1,6 @@
 import { handleStart } from '../handlers/start/start.mjs';
 import { handleMainMenu } from '../handlers/mainMenu.mjs';
-import { handleMintInitiate, handleMintCommand } from '../handlers/mint.mjs';
+import { handleMintInitiate, handleMintCommand } from '../handlers/mint/index.mjs'
 import { handleMultiMintInitiate, handleMultiMintCommand } from '../handlers/multiMint.mjs';
 import { handleTransferInitiate, handleTransferCommand } from '../handlers/transfer.mjs';
 import { handleCustomDataInitiate, handleCustomDataCommand } from '../handlers/customData.mjs';
@@ -8,6 +8,7 @@ import { handleViewWallet } from '../handlers/viewWallet.mjs';
 import { handleSettings } from '../handlers/settings.mjs';
 
 export async function routeCommand(chatId, text, userState) {
+    console.info('Command received: ', text, ' from chatId: ', chatId, ' with user state: ', userState)
 
     // INITIALIZATION
     if (text === '/start') {

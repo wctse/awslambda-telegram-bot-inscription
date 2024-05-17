@@ -2,7 +2,22 @@ export function isNumeric(str) {
     return !isNaN(parseFloat(str)) && isFinite(str);
 }
 
+/**
+ * Rounds strings or numbers to a specified number of decimal places
+ * 
+ * @param {str | number} value The value to round
+ * @param {number} decimals The number of decimal places to round to. If null, returns the value as a float
+ * @returns {number} The rounded value
+ */
 export function round(value, decimals) {
+    if (!decimals) {
+        return parseFloat(value);
+    }
+
+    if (typeof value === 'string') {
+        value = parseFloat(value);
+    }
+
     return Number(Math.round(value + 'e' + decimals) + 'e-' + decimals);
 }
 

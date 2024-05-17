@@ -1,12 +1,14 @@
 
-import { handleMintTickerInput, handleMintAmountInput } from '../handlers/mint.mjs';
+import { handleMintTickerInput, handleMintAmountInput } from  '../handlers/mint/index.mjs'
 import { handleStartImportWalletKeyInput } from '../handlers/start/importWallet.mjs';
 import { handleTransferTickerInput, handleTransferRecipientInput, handleTransferAmountInput } from '../handlers/transfer.mjs';
 import { handleCustomDataInput } from '../handlers/customData.mjs';
 import { handleMultiMintAmountInput, handleMultiMintTickerInput, handleMultiMintTimesInput } from '../handlers/multiMint.mjs';
-import { handleSendEthAmountInput, handleSendEthRecipientInput } from '../handlers/sendEth.mjs';
+import { handleSendAssetAmountInput, handleSendAssetRecipientInput } from "../handlers/sendAsset/index.mjs";
 
 export async function routeMessage(chatId, text, userState) {
+    console.info('Message received: ', text, ' from chatId: ', chatId, ' with user state: ', userState);
+
     // IMPORT WALLET
     if (userState === 'START_IMPORT_WALLET_CHAIN_NAME_INPUT') {
         await handleStartImportWalletKeyInput(chatId, text);
@@ -43,11 +45,11 @@ export async function routeMessage(chatId, text, userState) {
         await handleCustomDataInput(chatId, text);
 
     // SEND ETH
-    } else if (userState === 'SEND_ETH_INITIATED') {
-        await handleSendEthRecipientInput(chatId, text);
+    } else if (userState === 'SEND_ASSET_INITIATED') {
+        await handleSendAssetRecipientInput(chatId, text);
 
-    } else if (userState === 'SEND_ETH_RECIPIENT_INPUTTED') {
-        await handleSendEthAmountInput(chatId, text);
+    } else if (userState === 'SEND_ASSET_RECIPIENT_INPUTTED') {
+        await handleSendAssetAmountInput(chatId, text);
 
     } else {
         console.info('Unknown message received:', text);
