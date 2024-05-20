@@ -3,8 +3,10 @@ import { encrypt } from '../../common/kms.mjs';
 import { addItemToDynamoDB, checkItemsExistInDb, editItemInDb } from '../../common/db/dbOperations.mjs';
 import { editUserState } from '../../common/db/userDb.mjs';
 import { chunkArray } from '../../common/utils.mjs';
+import { createEvmWallet } from '../../blockchains/evm/common/index.mjs';
+import { createTonWallet } from '../../blockchains/ton/index.mjs';
 import config from '../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
-import { createEvmWallet } from '../../blockchains/evm/common/wallets.mjs';
+import { getWalletAddress } from '../../common/db/walletDb.mjs';
 
 const userTable = process.env.USER_TABLE_NAME;
 
@@ -47,9 +49,9 @@ export async function handleCreateWalletInitiate(chatId) {
  */
 export async function handleCreateWalletChainName(chatId, chainName) {
     const walletTable = process.env.WALLET_TABLE_NAME;
-    const walletExistsForUser = await checkItemsExistInDb(walletTable, `userId`, chatId );
+    const chainWalletAddress = await getWalletAddress(chatId, chainName)
 
-    if (walletExistsForUser) {
+    if (chainWalletAddress) {
         console.warn("User `" + chatId + "` already has a wallet but attempted to create a new one.");
 
         const walletExistsMessage = `⚠️ You already have a wallet for ${chainName}. You can view your wallet's address by tapping the button below.`;
@@ -66,7 +68,7 @@ export async function handleCreateWalletChainName(chatId, chainName) {
     
     await bot.sendMessage(chatId, "⏳ Creating wallet...");
     
-    const {publicAddress, privateKey} = await routeCreateWallet(chainName);
+    const {publicAddress, privateKey, mnemonic} = await routeCreateWallet(chainName);
     const encryptedPrivateKey = await encrypt(privateKey);
 
     // DynamoDB wallet data table item
@@ -87,14 +89,25 @@ export async function handleCreateWalletChainName(chatId, chainName) {
     console.info("Adding new wallet to DynamoDB:", chatId, publicAddress);
 
     // Private key message
-    const privateKeyMessage = 
-        `⚠️ IMPORTANT: Your private key is confidential. Do not share it with anyone! ⚠️\n` + 
-        `If you delete this message, you will not be shown the private key again.\n` +
-        `\n` + 
-        `Private Key:\n\`${privateKey}\``;
+    let privateKeyMessage = 
+        `⚠️ IMPORTANT: Your ${mnemonic ? "mnemonic phrase" : "private key"} is confidential. Do not share it with anyone! ⚠️\n` + 
+        `If you delete this message, you will not be shown the ${mnemonic ? "mnemonic phrase" : "private key"} again.\n` +
+        `\n`
+    
+    if (mnemonic) {
+        privateKeyMessage += `Mnemonic phrase:\n\`${mnemonic}\``;
+
+    } else {
+        privateKeyMessage += `Private Key:\n\`${privateKey}\``;
+
+    }
+
+    if (chainName === "TON") {
+        privateKeyMessage += `\n\n ⚠️⚠️⚠️ ATTENTION: To start to use this wallet, you will need to import this mnemonic phrase to other wallets, and send a transaction first.`;
+    }
 
     const publicAddressMessage = 
-        `✅ Your new Ethereum wallet has been created.\n` + 
+        `✅ Your new ${chainName} wallet has been created.\n` + 
         `\n` + 
         `Address: \`${publicAddress}\``;
 
@@ -113,6 +126,9 @@ function routeCreateWallet(chainName) {
     switch (chainName) {
         case "Ethereum":
             return createEvmWallet();
+
+        case "TON":
+            return createTonWallet();
 
         default:
             return Promise.reject(new Error(`routeCreateWallet: Chain ${chainName} not supported`));

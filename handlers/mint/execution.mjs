@@ -2,7 +2,7 @@ import { bot } from '../../common/bot.mjs';
 import { addItemToDynamoDB, getItemFromDb  } from '../../common/db/dbOperations.mjs';
 import { editUserState } from '../../common/db/userDb.mjs';
 import { getExplorerUrl, validateTransaction } from '../../services/processServices.mjs';
-import { sendTransaction } from '../../services/transactionServices.mjs';
+import { assembleTransactionSentMessage, sendTransaction } from '../../services/transactionServices.mjs';
 import { handleMintReviewRetry } from './exceptions.mjs';
 
 const processTable = process.env.PROCESS_TABLE_NAME;
@@ -26,37 +26,15 @@ export async function handleMintConfirm(chatId) {
     const amount = processItem.mintAmount;
     const data = processItem.mintData;
 
-    const errorType = await validateTransaction(chainName, prevGasPrice, 0.1, reviewPromptedAt, 60);
+    const errorType = await validateTransaction(chainName, publicAddress, prevGasPrice, 0.1, reviewPromptedAt, 60);
     if (errorType) {
         await handleMintReviewRetry(chatId, errorType);
         return;
     }
 
-    const txResponse = await sendTransaction(chatId, chainName, data);
-
-    const txHash = txResponse.hash;
-    const txTimestamp = txResponse.timestamp;
-
-    const addTransactionItemPromise = addItemToDynamoDB(transactionTable, { 
-        userId: chatId,
-        publicAddress: publicAddress,
-        transactionHash: txHash,
-        txType: 'mint',
-        timestamp: txTimestamp,
-        mintProtocol: protocol,
-        mintTicker: ticker,
-        mintAmount: amount });
-
-    // Send confirmation message to the user
-    const url = await getExplorerUrl(chainName, txHash);
-
-    const transactionSentMessage = 
-        `🚀 Your mint transaction has been sent to the blockchain.\n` +
-        `\n` +
-        `Transaction hash: [${txHash}](${url})\n` +
-        `\n` +
-        `⏳ Please wait for the transaction to be confirmed. This may take a few minutes.`;
-
+    const {txHash, txTimestamp} = await sendTransaction(chatId, chainName, data);
+    const transactionSentMessage = await assembleTransactionSentMessage(chainName, 'mint', publicAddress, txHash);
+    
     const transactionSentKeyboard = {
         inline_keyboard: [[
             { text: "🔁 Repeat", callback_data: "mint_repeat" },
@@ -67,6 +45,16 @@ export async function handleMintConfirm(chatId) {
             { text: "️↩️ Main menu", callback_data: "cancel_main_menu" }, // Use cancel to reset the user state
         ]]
     };
+
+    const addTransactionItemPromise = addItemToDynamoDB(transactionTable, { 
+        userId: chatId,
+        publicAddress: publicAddress,
+        transactionHash: txHash ? txHash: 'null',
+        txType: 'mint',
+        timestamp: txTimestamp ? txTimestamp : 'null',
+        mintProtocol: protocol,
+        mintTicker: ticker,
+        mintAmount: amount });
 
     const sendMessagePromise = bot.sendMessage(chatId, transactionSentMessage, { parse_mode: 'Markdown', reply_markup: transactionSentKeyboard });
     const editUserStatePromise = editUserState(chatId, 'MINT_CONFIRMED');

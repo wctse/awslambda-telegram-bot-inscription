@@ -25,14 +25,14 @@ export async function assembleIerc20Data(txType, components) {
                 !components.recipient ||
                 typeof components.protocol !== 'string' ||
                 typeof components.ticker !== 'string' ||
-                !isNaN(parseFloat(components.ticker)) ||
+                isNaN(parseFloat(components.amount)) ||
                 typeof components.recipient !== 'string' ||
                 Object.keys(components).length !== 4
             ) {
                 throw new Error('Incorrect entries for ierc-20 transfer data assembling. Required: protocol (str), ticker (str), amount (str of number), recipient (str)');
             }
 
-            return `data:application/json,{"p":"${components.protocol}","op":"transfer","tick":"${components.ticker}","nonce":"","to":[{"amt":"${components.amount}","recv":"${components.recipient}"}]}`;;
+            return `data:application/json,{"p":"${components.protocol}","op":"transfer","tick":"${components.ticker}","nonce":"","to":[{"amt":"${components.amount}","recv":"${components.recipient}"}]}`;
 
         default:
             throw new Error(`Transaction type ${txType} data assembling not supported for ierc-20`);
@@ -80,4 +80,12 @@ export async function getIerc20Balance(publicAddress) {
     const transactions = await getItemsFromDb(transactionTable, "publicAddress", publicAddress);
     const ierc20Balances = await calculateIerc20Balance(transactions);
     return ierc20Balances;
+}
+
+export async function getIerc20ListPageMessage() {
+    return `📖 [You can search for existing tokens on ierc20.com.](https://app.ierc20.com/)`;
+}
+
+export async function getIerc20TokenPageMessage(ticker) {
+    return `📖 [Check the ${ticker} information on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
 }

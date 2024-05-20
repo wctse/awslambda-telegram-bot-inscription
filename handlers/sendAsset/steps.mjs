@@ -1,7 +1,7 @@
 import { bot, cancelMainMenuKeyboard, mainMenuKeyboard } from "../../common/bot.mjs";
 import { editItemInDb, getItemFromDb } from "../../common/db/dbOperations.mjs";
 import { editUserState, getCurrentChain } from "../../common/db/userDb.mjs";
-import { getAssetBalance, getUnits, validateAddress, validateAmount, validateEnoughBalance } from "../../services/processServices.mjs";
+import { getAssetBalance, getNotEnoughBalanceMessage, getUnits, validateAddress, validateAmount, validateEnoughBalance } from "../../services/processServices.mjs";
 
 const processTable = process.env.PROCESS_TABLE_NAME;
 
@@ -52,7 +52,7 @@ export async function handleSendAssetInitiate(chatId) {
 export async function handleSendAssetRecipientInput(chatId, recipient) {
     const processItem = await getItemFromDb(processTable, { userId: chatId });
     const chainName = processItem.sendAssetChain;
-    const [assetName, _] = await getUnits(chainName);
+    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     if (!(await validateAddress(recipient, chainName))) {
         await bot.sendMessage(chatId, "⛔️ Invalid address. Please try again.", { reply_markup: cancelMainMenuKeyboard });
@@ -87,6 +87,7 @@ export async function handleSendAssetAmountInput(chatId, amount) {
     const recipient = processItem.sendAssetRecipient;
     
     const [hasEnoughBalance, [assetBalance, currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, '', true, [null, 0, 4, 2]);
+    const [assetName, _] = await getUnits(chainName);
 
     if (!hasEnoughBalance) {
         const notEnoughAssetMessage = `⚠️ You only have \`${assetBalance}\` ${assetName} in your wallet. Please enter an amount less than your balance.`;
@@ -94,7 +95,6 @@ export async function handleSendAssetAmountInput(chatId, amount) {
         return;
     }
 
-    const [assetName, _] = await getUnits(chainName);
 
     let sendAssetReviewMessage = 
         `⌛ Please review the transaction information below. \n` +
@@ -103,14 +103,14 @@ export async function handleSendAssetAmountInput(chatId, amount) {
         `Chain: \`${chainName}\`\n` +
         `Recipient: \`${recipient}\`\n` +
         `Amount: ${amount} ${assetName}\n` +
-        `\n` +
-        `Current Gas Price: ${currentGasPrice} Gwei\n` +
-        `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+        `\n`
+    
+    if (txCost && txCostUsd) {
+        sendAssetReviewMessage += `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+    }
 
-    if (assetBalance < txCost + parseFloat(amount)) {
-        sendAssetReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated gas cost. You can still proceed, but the transaction is likely to fail. ` +
-            `Please consider waiting for the gas price to drop, or transfer more ${assetName} to the wallet.`;
+    if (!(hasEnoughBalance)) {
+        sendAssetReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     sendAssetReviewMessage += "\n\n" +

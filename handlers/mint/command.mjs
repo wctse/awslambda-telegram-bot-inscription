@@ -1,7 +1,8 @@
-import { bot } from '../../common/bot.mjs';
+import { bot, mainMenuKeyboard } from '../../common/bot.mjs';
 import { editItemInDb  } from '../../common/db/dbOperations.mjs';
 import { editUserState, getCurrentChain } from '../../common/db/userDb.mjs';
-import { assembleData, getAssetBalance, getUnits, validateAmount, validateEnoughBalance } from '../../services/processServices.mjs';
+import { assembleData, getAssetBalance, getNotEnoughBalanceMessage, getUnits, validateAmount, validateEnoughBalance } from '../../services/processServices.mjs';
+import { mintDescriptionMessage } from './constants.mjs';
 
 const processTable = process.env.PROCESS_TABLE_NAME;
 
@@ -14,10 +15,11 @@ const processTable = process.env.PROCESS_TABLE_NAME;
 export async function handleMintCommand(chatId, text) {
     const chainName = await getCurrentChain(chatId);
     const [ assetBalance, publicAddress ] = await getAssetBalance(chatId, chainName, true);
+    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     if (assetBalance == 0) {
         const noAssetMessage = mintDescriptionMessage + 
-            "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
+            `⚠️ You don't have any ${assetName} in your wallet. Please transfer some ${assetName} to your wallet first.`;
         
         await bot.sendMessage(chatId, noAssetMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
@@ -33,7 +35,6 @@ export async function handleMintCommand(chatId, text) {
     const data = await assembleData(chainName, protocol, 'mint', { protocol, ticker, amount })
 
     const [hasEnoughBalance, [_assetBalance, currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, data, true, [null, 0, 4, 2]);
-    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     let mintReviewMessage = 
         `⌛ Please review the inscription information below. \n` +
@@ -43,13 +44,14 @@ export async function handleMintCommand(chatId, text) {
         `Protocol: \`${protocol}\`\n` +
         `Ticker: \`${ticker}\`\n` +
         `Amount: \`${amount}\`\n` +
-        `\n` +
-        `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+        `\n`
+    
+    if (txCost && txCostUsd) {
+        mintReviewMessage += `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+    }
 
     if (!hasEnoughBalance) {
-        mintReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the transaction is likely to fail. ` +
-            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+        mintReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     mintReviewMessage += "\n\n" +

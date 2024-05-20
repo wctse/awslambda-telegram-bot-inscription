@@ -14,7 +14,7 @@ export async function handleViewWallet(chatId) {
         `\n` +
         `Chain: \`${chainName}\`\n` +
         `Address: \`${publicAddress}\`\n` +
-        `ETH Balance: ${assetBalance} ${assetName} (\$${assetBalanceUsd})\n` +
+        `Asset Balance: ${assetBalance} ${assetName} (\$${assetBalanceUsd})\n` +
         `\n`;
 
     const inscriptionBalances = await getInscriptionBalance(chatId, publicAddress, chainName);
@@ -23,11 +23,17 @@ export async function handleViewWallet(chatId) {
         const tickerBalances = Object.entries(protocolObj)
             .map(([ticker, balance]) => `${ticker}: \`${balance}\``)
             .join('\n');
-        
-        return `*${protocol} Balances*\n${tickerBalances}`;
-        }).join('\n\n');
+  
+        return tickerBalances.length > 0
+            ? `*${protocol} Balances*\n${tickerBalances}`
+            : `*${protocol} Balances*\nYou have no ${protocol} tokens in the wallet.`;
+    }).join('\n\n');
 
-    viewWalletMessage += protocolSections + balanceCalculationMessage;
+    viewWalletMessage += protocolSections;
+    
+    if (chainName in ['Ethereum']) {
+        viewWalletMessage += balanceCalculationMessage;
+    }
 
     const viewWalletKeyboard = {
         inline_keyboard: [[

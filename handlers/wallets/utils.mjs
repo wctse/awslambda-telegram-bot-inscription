@@ -1,11 +1,15 @@
 import { mnemonicWordList } from 'ton-crypto';
-import { getEvmAddressFromPrivateKey, getEvmPrivateKeyFromMnemonic, validateEvmPrivateKey } from '../../blockchains/evm/common/wallets.mjs';
+import { getEvmAddressFromPrivateKey, getEvmPrivateKeyFromMnemonic, validateEvmPrivateKey } from '../../blockchains/evm/common/index.mjs';
+import { getTonAddressFromPrivateKey, getTonPrivateKeyFromMnemonic, validateTonPrivateKey } from '../../blockchains/ton/index.mjs';
 
 
-export function getPrivateKeyFromMnemonic(chainName, mnemonic) {
+export async function getPrivateKeyFromMnemonic(chainName, mnemonic) {
     switch (chainName) {
-        case "Ethereum":
-            return getEvmPrivateKeyFromMnemonic(mnemonic);
+        case 'Ethereum':
+            return await getEvmPrivateKeyFromMnemonic(mnemonic);
+
+        case 'TON':
+            return await getTonPrivateKeyFromMnemonic(mnemonic);
 
         default:
             throw new Error(`getPrivateKeyFromMnemonic: Chain ${chainName} not supported`);
@@ -13,8 +17,11 @@ export function getPrivateKeyFromMnemonic(chainName, mnemonic) {
 }
 export function getAddressFromPrivateKey(chainName, privateKey) {
     switch (chainName) {
-        case "Ethereum":
+        case 'Ethereum':
             return getEvmAddressFromPrivateKey(privateKey);
+
+        case 'TON':
+            return getTonAddressFromPrivateKey(privateKey);
 
         default:
             throw new Error(`getAddressFromPrivateKey: Chain ${chainName} not supported`);
@@ -40,8 +47,11 @@ export function validateMnemonic(mnemonic) {
 
 export function validatePrivateKey(chainName, privateKey) {
     switch (chainName) {
-        case "Ethereum":
+        case 'Ethereum':
             return validateEvmPrivateKey(privateKey);
+
+        case 'TON':
+            return validateTonPrivateKey(privateKey);
 
         default:
             throw new Error(`validatePrivateKey: Chain ${chainName} not supported`);

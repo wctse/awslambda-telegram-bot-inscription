@@ -1,10 +1,19 @@
-import { assembleEvmData, getEvmBalance, getEvmExplorerUrl, getEvmGasPrice } from "../blockchains/evm/common/utils.mjs";
-import { getWalletAddress } from "../common/db/walletDb.mjs";
-import { validateEvmAddress, validateEvmEnoughBalance } from "../blockchains/evm/common/validations.mjs";
-import { getIerc20Balance } from "../blockchains/evm/ethereum/protocols/ierc20.mjs";
-import { getAssetPrice } from "../common/coingecko.mjs";
 import { round } from "../common/utils.mjs";
+import { getWalletAddress } from "../common/db/walletDb.mjs";
+import { getAssetPrice } from "../common/coingecko.mjs";
+import { assembleEvmData, getEvmBalance, getEvmExplorerUrl, getEvmInscriptionBalance, getEvmGasPrice, validateEvmAddress, validateEvmEnoughBalance, getEvmInscriptionListPageMessage, getEvmInscriptionTokenPageMessage } from "../blockchains/evm/common/index.mjs";
+import { assembleTonData, getTonBalance, getTonExplorerUrl, getTonInscriptionBalance, getTonInscriptionListPageMessage, getTonInscriptionTokenPageMessage, validateAddressInitialized, validateTonAddress } from "../blockchains/ton/index.mjs";
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
+
+/**
+ * Get the array of inscription protocols of a chain from the config
+ * 
+ * @param {str} chainName 
+ * @returns {Promise<[str]>} Promise that resolves to an array of the inscription protocols of the chain
+ */
+export async function getProtocols(chainName) {
+    return config.CHAINS.find(chain => chain.name === chainName).protocols;
+}
 
 /**
  * Create the data field based on the blockchain inscription protocol and transaction type
@@ -19,6 +28,9 @@ export async function assembleData(chainName, protocol, txType, components) {
     switch (chainName) {
         case 'Ethereum':
             return await assembleEvmData(chainName, protocol, txType, components);
+
+        case 'TON':
+            return await assembleTonData(protocol, txType, components);
             
         default:
             throw new Error('Chain not supported');
@@ -40,11 +52,17 @@ export async function getAssetBalance(chatId, chainName, return_wallet=false) {
     switch (chainName) {
         case 'Ethereum':
             assetBalance = await getEvmBalance(publicAddress, chainName);
-            return return_wallet ? [assetBalance, publicAddress] : assetBalance;
+            break;
+
+        case 'TON':
+            assetBalance = await getTonBalance(publicAddress);
+            break;
             
         default:
             throw new Error('Chain not supported');
     }
+
+    return return_wallet ? [assetBalance, publicAddress] : assetBalance;
 }
 
 /**
@@ -95,28 +113,15 @@ export async function getInscriptionBalance(chatId=null, publicAddress=null, cha
 
     switch (chainName) {
         case 'Ethereum':
-            const ierc20Balance = await getIerc20Balance(publicAddress);
-            const balances = {
-                "ierc-20": ierc20Balance
-            };
-            
-            return balances;
+            return await getEvmInscriptionBalance(publicAddress, chainName);
+        
+        case 'TON':
+            return await getTonInscriptionBalance(publicAddress);
 
         default:
             throw new Error('Chain not supported');
     }
 }
-
-/**
- * Get the array of inscription protocols of a chain from the config
- * 
- * @param {str} chainName 
- * @returns {Promise<[str]>} Promise that resolves to an array of the inscription protocols of the chain
- */
-export async function getProtocols(chainName) {
-    return config.CHAINS.find(chain => chain.name === chainName).protocols;
-}
-
 
 /**
  * Get the current gas price for a particular chain
@@ -132,7 +137,7 @@ export async function getCurrentGasPrice(chainName, decimals=null, return_usd=fa
             return await getEvmGasPrice(chainName, decimals, return_usd);
         
         case 'TON':
-            return 
+            return null; // TON does not have floating gas prices
             
         default:
             throw new Error(`getCurrentGasPrice: Chain ${chainName} not supported`);
@@ -147,7 +152,8 @@ export async function getCurrentGasPrice(chainName, decimals=null, return_usd=fa
  */
 export async function getUnits(chainName) {
     const gasUnitMapping = {
-        'Ethereum': ['ETH', 'gwei']
+        'Ethereum': ['ETH', 'gwei'],
+        'TON': ['TON', 'nanoTON']
     };
 
     if (!gasUnitMapping[chainName]) {
@@ -164,15 +170,67 @@ export async function getUnits(chainName) {
  * @param {*} txHash 
  * @returns {Promise<str>} Promise that resolves to the URL of the transaction on the explorer for the chain
  */
-export async function getExplorerUrl(chainName, txHash) {
-    switch(chainName) {
+export async function getExplorerUrl(chainName, txHash=null, publicAddress=null) {
+    if (!txHash && !publicAddress) {
+        throw new Error('One of txHash and publicAddress must be provided');
+    }
+    
+    switch (chainName) {
         case 'Ethereum':
-            return await getEvmExplorerUrl(chainName, txHash)
+            return await getEvmExplorerUrl(chainName, txHash);
+
+        case 'TON':
+            return await getTonExplorerUrl(txHash);
             
         default:
             throw new Error(`getExplorerUrl: Chain ${chainName} not supported`);
     
     }
+}
+
+export async function getInscriptionListPageMessage(chainName, protocol) {
+    switch (chainName) {
+        case 'Ethereum':
+            return getEvmInscriptionListPageMessage(chainName, protocol);
+        
+        case 'TON':
+            return getTonInscriptionListPageMessage(protocol);
+            
+        default:
+            throw new Error(`getInscriptionListPageMessage: Chain ${chainName} not supported`);
+    
+    }
+}
+
+export async function getInscriptionTokenPageMessage(chainName, protocol, ticker) {
+    switch (chainName) {
+        case 'Ethereum':
+            return getEvmInscriptionTokenPageMessage(chainName, protocol, ticker);
+        
+        case 'TON':
+            return getTonInscriptionTokenPageMessage(protocol, ticker)
+            
+        default:
+            throw new Error(`getInscriptionTokenPageMessage: Chain ${chainName} not supported`);
+    
+    }
+}
+
+export async function getNotEnoughBalanceMessage(chainName, assetName) {
+    let notEnoughBalanceMessage = 
+        "\n\n" +    
+        `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the transaction is likely to fail. `
+
+    // Chains with variable gas prices
+    if (chainName in ['Ethereum']) {
+        `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+    }
+
+    if (chainName == 'TON') {
+        `Please keep at least 1 TON in the wallet to prevent unpredictable errors.`;
+    }
+
+    return notEnoughBalanceMessage;
 }
 
 /**
@@ -186,6 +244,9 @@ export async function validateAddress(address, chainName) {
     switch (chainName) {
         case 'Ethereum':
             return await validateEvmAddress(address);
+
+        case 'TON':
+            return await validateTonAddress(address);        
             
         default:
             throw new Error('Chain not supported');
@@ -215,8 +276,11 @@ export async function validateAmount(amount) {
  */
 export async function validateEnoughBalance(chatId, chainName, data, return_numbers=false, decimals=[]) {
     switch (chainName) {
-        case 'Ethereum':
+        case 'Ethereum':    
             return await validateEvmEnoughBalance(chatId, chainName, data, return_numbers, decimals);
+
+        case 'TON':
+            return [true, [null, null, null, null]]; // Todo to implement
             
         default:
             throw new Error('Chain not supported');
@@ -258,13 +322,21 @@ export async function validateNoGasSpike(chainName, prevGasPrice, maxSpike) {
  * @param {int} durationSeconds The limitation of elapsed duration to check against the startTimestamp, in seconds
  * @returns {Promise<str | null>} Promise that resolves to null if all validations pass, or a string indicating the validation that failed
  */
-export async function validateTransaction(chainName, prevGasPrice, maxSpike, startTimestamp, durationSeconds) {
+export async function validateTransaction(chainName, publicAddress, prevGasPrice, maxSpike, startTimestamp, durationSeconds) {
     if (!(await validateTimeNotElapsed(startTimestamp, durationSeconds))) {
         return 'timeout';
     }
 
-    if (!(await validateNoGasSpike(chainName, prevGasPrice, maxSpike))) {
-        return 'expensive_gas';
+    if (prevGasPrice) {
+        if (!(await validateNoGasSpike(chainName, prevGasPrice, maxSpike))) {
+            return 'expensive_gas';
+        }
+    }
+
+    if (chainName == 'TON') {
+        if (!(await validateAddressInitialized(publicAddress))) {
+            return 'address_not_initialized';
+        }
     }
 
     return null;

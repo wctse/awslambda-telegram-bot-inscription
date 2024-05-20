@@ -23,12 +23,14 @@ export async function handleMintReviewRetry(chatId, retryReason) {
     } else if (retryReason === 'expensive_gas') {
         message = "⌛ The gas price increased a lot. Please reconfirm:";
         
+    } else if (retryReason === 'address_not_initialized') {
+        await bot.sendMessage(chatId, "The TON account is not initialized. Please import it to other wallets and send a transaction first.")
+
     } else {
         console.warn('Unknown reason for mint confirmation retry: ', retryReason);
         message = null; // No message to send for unknown reasons or 'repeat_mint'
     }
 
-    // Parallelize the sendMessage operation (if there's a message to send) and the retrieval & processing of item from DynamoDB
     const sendMessagePromise = message ? bot.sendMessage(chatId, message) : Promise.resolve();
     const retryMintAmountInputPromise = getItemFromDb(processTable, { userId: chatId })
         .then(processItem => {
@@ -36,7 +38,6 @@ export async function handleMintReviewRetry(chatId, retryReason) {
             return handleMintAmountInput(chatId, amount);
         });
 
-    // Use Promise.all to wait for both operations
     await Promise.all([sendMessagePromise, retryMintAmountInputPromise]);
 }
 

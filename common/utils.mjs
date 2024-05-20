@@ -25,6 +25,21 @@ export function toProperCase(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
+export function camelCaseToWords(str) {
+    // Check if the string is already a single word (no uppercase letters except the first one)
+    if (str === str.toLowerCase() || (str[0] === str[0].toUpperCase() && str.slice(1) === str.slice(1).toLowerCase())) {
+      return str;
+    }
+  
+    // Split the string based on uppercase letters
+    const words = str.split(/(?=[A-Z])/);
+  
+    // Join the words with spaces and convert the first letter of each word to lowercase
+    const result = words.map(word => word.charAt(0).toLowerCase() + word.slice(1)).join(' ');
+  
+    return result;
+}
+
 /**
  * Chunks an array into smaller arrays of a specified size
  * Example usage:
@@ -95,3 +110,4 @@ export async function updateNonce(data) {
     const newData = prefix + JSON.stringify(jsonObj);
     return newData;
 }
+

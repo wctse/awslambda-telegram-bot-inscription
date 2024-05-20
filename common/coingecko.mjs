@@ -1,20 +1,20 @@
-// Todo: Remove and replace with getAssestPrice
-export async function getEthPrice() {
-    const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
-    const data = await response.json();
-    return data.ethereum.usd;
-}
-
 export async function getAssetPrice(chainName) {
-    const apiEndpoints = {
-        Ethereum: 'https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd',
+    const apiIds = {
+        Ethereum: 'ethereum',
+        TON: 'the-open-network'
     };
 
-    if (!(chainName in apiEndpoints)) {
+    const id = apiIds[chainName];
+
+    if (!id) {
         throw new Error('Chain not supported');
     }
 
-    const response = await fetch(apiEndpoints[chainName]);
+    const apiEndpoint = `https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd`;
+    
+    console.log(`getAssetPrice for ${chainName} at ${apiEndpoint}`);
+    const response = await fetch(apiEndpoint);
     const data = await response.json();
-    return data.ethereum.usd;
+
+    return data[id]['usd'];
 }

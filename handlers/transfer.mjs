@@ -1,9 +1,9 @@
-import { balanceCalculationMessage, bot, cancelMainMenuKeyboard, divider } from '../common/bot.mjs';
+import { balanceCalculationMessage, bot, cancelMainMenuKeyboard, divider, mainMenuKeyboard } from '../common/bot.mjs';
 import { chunkArray } from '../common/utils.mjs';
 import { addItemToDynamoDB, editItemInDb, getItemFromDb } from '../common/db/dbOperations.mjs';
 import { editUserState, getCurrentChain } from '../common/db/userDb.mjs';
-import { assembleData, getAssetBalance, getExplorerUrl, getInscriptionBalance, getUnits, validateAddress, validateAmount, validateEnoughBalance, validateTransaction } from '../services/processServices.mjs';
-import { sendTransaction } from "../services/transactionServices.mjs";
+import { assembleData, getAssetBalance, getExplorerUrl, getInscriptionBalance, getNotEnoughBalanceMessage, getUnits, validateAddress, validateAmount, validateEnoughBalance, validateTransaction } from '../services/processServices.mjs';
+import { assembleTransactionSentMessage, sendTransaction } from "../services/transactionServices.mjs";
 import config from '../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 import { getWalletAddress } from '../common/db/walletDb.mjs';
 
@@ -31,7 +31,7 @@ export async function handleTransferInitiate(chatId) {
 
     if (assetBalance == 0) {
         const noAssetMessage = transferDescriptionMessage + 
-            `⚠️ You don't have any ${assetName} in your wallet. Please transfer some ETH to your wallet first.`;
+            `⚠️ You don't have any ${assetName} in your wallet. Please transfer some ${assetName} to your wallet first.`;
         
         await bot.sendMessage(chatId, noAssetMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
@@ -39,10 +39,19 @@ export async function handleTransferInitiate(chatId) {
 
     // Case if user has no balances, still allow them to mint as the database may be out of sync
     if (Object.values(inscriptionBalances).every(protocolObj => Object.keys(protocolObj).length === 0)) {
-        let transferNoBalanceMessage = transferDescriptionMessage + "⛔ You have no balances to transfer.\n" +
-          "Do you want to mint some tokens?" + balanceCalculationMessage + "\n" +
-          "\n" +
-          "If you checked your balances and still wish to transfer, please input the token ticker below:";
+        let transferNoBalanceMessage =
+            transferDescriptionMessage +
+            "⛔ You have no balances to transfer.\n" +
+            "Do you want to mint some tokens?\n" +
+            "\n"
+
+        if (chainName in ['Ethereum']) {
+            transferNoBalanceMessage += balanceCalculationMessage + "\n"
+        }
+        
+        transferNoBalanceMessage += 
+            "\n" +
+            "If you checked your balances and still wish to transfer, please input the token ticker below:";
       
         const transferNoBalanceKeyboard = {
           inline_keyboard: [[
@@ -188,13 +197,14 @@ export async function handleTransferAmountInput(chatId, amount) {
         `Protocol: \`${protocol}\`\n` +
         `Ticker: \`${ticker}\`\n` +
         `Amount: \`${amount}\`\n` +
-        `\n` +
-        `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+        `\n`
+
+    if (txCost && txCostUsd) {
+        transferReviewMessage += `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+    }
 
     if (!hasEnoughBalance) {
-        transferReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the transaction is likely to fail. ` +
-            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+        transferReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     transferReviewMessage += "\n\n" +
@@ -233,40 +243,37 @@ export async function handleTransferConfirm(chatId) {
     const recipient = processItem.transferRecipient;
     const data = processItem.transferData;
 
-    const errorType = await validateTransaction(chainName, prevGasPrice, 0.1, reviewPromptedAt, 60);
+    const errorType = await validateTransaction(chainName, publicAddress, prevGasPrice, 0.1, reviewPromptedAt, 60);
     if (errorType) {
         await handleTransferReviewRetry(chatId, errorType);
         return;
     }
 
-    const txResponse = await sendTransaction(chatId, chainName, data);
+    let txHash, txTimestamp;
 
-    const txHash = txResponse.hash;
-    const txTimestamp = txResponse.timestamp;
+    if (chainName === 'Ethereum') {
+        ({ txHash, txTimestamp } = await sendTransaction(chatId, chainName, data));
 
+    } else if (chainName === 'TON') {
+        ({ txHash, txTimestamp } = await sendTransaction(chatId, chainName, data, recipient));
+
+    }
+
+    const transactionSentMessage = await assembleTransactionSentMessage(chainName, 'transfer', publicAddress, txHash);
+    
     const addTransactionItemPromise = addItemToDynamoDB(transactionTable, { 
         userId: chatId,
         publicAddress: publicAddress,
-        transactionHash: txHash,
+        transactionHash: txHash ? txHash: 'null',
         txType: 'transfer',
-        timestamp: txTimestamp,
+        timestamp: txTimestamp ? txTimestamp : 'null',
         transferProtocol: protocol,
         transferTicker: ticker,
         transferAmount: amount,
         transferRecipient: recipient,
     });
 
-    // Send confirmation message to the user
-    const url = await getExplorerUrl(chainName, txHash);
-
-    const transferSentMessage = 
-        `🚀 Your transfer transaction has been sent to the blockchain.\n` +
-        `\n` +
-        `Transaction hash: [${txHash}](${url})\n` +
-        `\n` +
-        `⏳ Please wait for the transaction to be confirmed. This may take a few minutes.`;
-
-    const transferSentKeyboard = {
+    const transactionSentKeyboard = {
         inline_keyboard: [[
             { text: "🧘 Make another transfer", callback_data: "transfer" },
             { text: "📃 Main menu", callback_data: "main_menu" }
@@ -274,7 +281,7 @@ export async function handleTransferConfirm(chatId) {
     };
 
     const editUserStatePromise = editUserState(chatId, "IDLE");
-    const sendMessagePromise = bot.sendMessage(chatId, transferSentMessage, { reply_markup: transferSentKeyboard, parse_mode: 'Markdown' });
+    const sendMessagePromise = bot.sendMessage(chatId, transactionSentMessage, { reply_markup: transactionSentKeyboard, parse_mode: 'Markdown' });
     
     await Promise.all([addTransactionItemPromise, editUserStatePromise, sendMessagePromise]);
 }
@@ -297,6 +304,9 @@ export async function handleTransferReviewRetry(chatId, retryReason) {
     } else if (retryReason === 'expensive_gas') {
         message = "⌛ The gas price increased a lot. Please reconfirm:";
         
+    } else if (retryReason === 'address_not_initialized') {
+        await bot.sendMessage(chatId, "The TON account is not initialized. Please import it to other wallets and send a transaction first.")
+
     } else {
         console.warn('Unknown reason for transfer confirmation retry: ', retryReason);
         message = null; // No message to send for unknown reasons or 'repeat_mint'
@@ -356,13 +366,14 @@ export async function handleTransferCommand(chatId, text) {
         `Protocol: \`${protocol}\`\n` +
         `Ticker: \`${ticker}\`\n` +
         `Amount: \`${amount}\`\n` +
-        `\n` +
-        `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+        `\n`
+
+    if (txCost && txCostUsd) {
+        transferReviewMessage += `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+    }
 
     if (!hasEnoughBalance) {
-        transferReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the transaction is likely to fail. ` +
-            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+        transferReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     transferReviewMessage += "\n\n" +

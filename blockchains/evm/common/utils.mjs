@@ -2,17 +2,22 @@ import { ethers, isHexString } from 'ethers';
 import { round } from '../../../common/utils.mjs';
 import { getProvider } from './providers.mjs';
 import { getAssetPrice } from '../../../common/coingecko.mjs';
-import { assembleIerc20Data } from '../ethereum/protocols/ierc20.mjs';
+import { assembleIerc20Data, getIerc20Balance, getIerc20ListPageMessage, getIerc20TokenPageMessage } from '../ethereum/protocols/ierc20.mjs';
 import config from '../../../config.json' assert { type: 'json' }; // Lambda IDE will show this is an error, but it would work
 
 export async function assembleEvmData(chainName, protocol, txType, components) {
-    switch (chainName, protocol) {
-        case 'Ethereum', 'ierc-20':
-            return await assembleIerc20Data(txType, components);
-            
-        default:
-            throw new Error('Protocol not supported');
-    }
+    const chainProtocolMap = {
+        'Ethereum-ierc-20': assembleIerc20Data,
+      };
+      
+      const key = `${chainName}-${protocol}`;
+      
+      if (key in chainProtocolMap) {
+        return await chainProtocolMap[key](txType, components);
+        
+      } else {
+        throw new Error('Protocol not supported');
+      }
 }
 
 export async function getTransactionInscription(transactionHash, chainName = "Ethereum") {
@@ -29,8 +34,7 @@ export async function getTransactionInscription(transactionHash, chainName = "Et
     return text;
 }
 
-// todo: remove and be replaced by getEvmBalance
-export async function getEthBalance(publicAddress, chainName = "Ethereum") {
+export async function getEvmBalance(publicAddress, chainName = "Ethereum") {
     const provider = getProvider(chainName);
 
     try {
@@ -43,16 +47,17 @@ export async function getEthBalance(publicAddress, chainName = "Ethereum") {
     }
 }
 
-export async function getEvmBalance(publicAddress, chainName = "Ethereum") {
-    const provider = getProvider(chainName);
+export async function getEvmInscriptionBalance(publicAddress, chainName) {
+    let balances;
 
-    try {
-        const balance = await provider.getBalance(publicAddress);
-        return ethers.formatEther(balance); // Converts the balance from Wei to Ether
-        
-    } catch (error) {
-        console.error('Error getting ETH balance:', error);
-        throw error;
+    switch (chainName) {
+        case 'Ethereum':
+            const ierc20Balance = await getIerc20Balance(publicAddress);
+            balances = {
+                "ierc-20": ierc20Balance
+            };
+
+        return balances;
     }
 }
 
@@ -87,14 +92,47 @@ export async function getEvmGasPrice(chainName, decimals=null, return_usd=false)
 export async function getEvmExplorerUrl(chainName, txHash) {
     const testnet = config.TESTNET;
 
-    switch (chainName, testnet) {
-        case 'Ethereum', false:
-            return `https://etherscan.io/tx/${txHash}`;
-
-        case 'Ethereum', true:
+    switch (chainName) {
+        case 'Ethereum':
+          if (testnet) {
             return `https://sepolia.etherscan.io/tx/${txHash}`;
 
+          } else {
+            return `https://etherscan.io/tx/${txHash}`;
+
+          }
+          
         default:
-            throw new Error(`getEvmExplorerUrl: Chain ${chainName} not supported`);
+          throw new Error(`getEvmExplorerUrl: Chain ${chainName} not supported`);
+      }
+}
+
+export async function getEvmInscriptionListPageMessage(chainName, protocol) {
+    const chainProtocolMap = {
+        'Ethereum-ierc-20': getIerc20ListPageMessage,
+      };
+      
+    const key = `${chainName}-${protocol}`;
+    
+    if (key in chainProtocolMap) {
+        return await chainProtocolMap[key]();
+    
+    } else {
+        throw new Error(`getEvmInscriptionListPageMessage: Chain ${chainName} and protocol ${protocol} not supported`);
+    }
+}
+
+export async function getEvmInscriptionTokenPageMessage(chainName, protocol, ticker) {
+    const chainProtocolMap = {
+        'Ethereum-ierc-20': getIerc20TokenPageMessage,
+      };
+      
+    const key = `${chainName}-${protocol}`;
+    
+    if (key in chainProtocolMap) {
+        return await chainProtocolMap[key](ticker);
+    
+    } else {
+        throw new Error(`getEvmInscriptionTokenPageMessage: Chain ${chainName} and protocol ${protocol} not supported`);
     }
 }

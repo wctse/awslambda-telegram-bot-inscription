@@ -7,8 +7,6 @@ import { handleMultiMintAmountInput, handleMultiMintTickerInput, handleMultiMint
 import { handleSendAssetAmountInput, handleSendAssetRecipientInput } from "../handlers/sendAsset/index.mjs";
 
 export async function routeMessage(chatId, text, userState) {
-    console.info('Message received: ', text, ' from chatId: ', chatId, ' with user state: ', userState);
-
     // IMPORT WALLET
     if (userState === 'START_IMPORT_WALLET_CHAIN_NAME_INPUT') {
         await handleImportWalletKeyInput(chatId, text);
@@ -31,9 +29,6 @@ export async function routeMessage(chatId, text, userState) {
         await handleMultiMintTimesInput(chatId, text);
 
     // TRANSFER
-    } else if (userState === 'TRANSFER_INITIATED') {
-        await handleTransferTickerInput(chatId, text, 'ierc-20');
-
     } else if (userState === 'TRANSFER_TOKEN_INPUTTED') {
         await handleTransferRecipientInput(chatId, text);
 

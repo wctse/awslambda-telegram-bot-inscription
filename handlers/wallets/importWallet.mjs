@@ -67,7 +67,7 @@ export async function handleImportWalletChainName(chatId, chainName) {
     }
 
     const importWalletKeyMessage = 
-        `🔑 You are importing your wallet for \`${chainName}\`. Please enter your private key or mnemonic phrase divided by spaces below.` + '\n' +
+        `🔑 You are importing your wallet for \`${chainName}\`. Please enter your private key or mnemonic phrase divided by spaces below. Use spaces to separate the words in the mnemonic phrase.` + '\n' +
         '\n' +
         `⚠️ We will encrypt your private key or mnemonic phrase in all storages, but still only import private keys with a small amount of funds!`;
 
@@ -110,7 +110,7 @@ export async function handleImportWalletKeyInput(chatId, privateKeyOrMnemonic) {
         privateKey = privateKeyOrMnemonic;
     }
 
-    if (!(isPrivateKey || isMnemonic)) {
+    if (!(isPrivateKey || isMnemonic) || mnemonicError) {
         const importWalletInvalidKeyMessage = `⚠️ Invalid private key or mnemonic phrase. Please try again or go back to the starting page.`;
         const importWalletInvalidKeyKeyboard = {
             inline_keyboard: [[
@@ -158,7 +158,7 @@ export async function handleImportWalletKeyInput(chatId, privateKeyOrMnemonic) {
     // Add the user's wallet to DynamoDB
     console.info("Adding new wallet to DynamoDB:", chatId, publicAddress);
 
-    const importWalletSuccessMessage = `✅ Your Ethereum wallet has been imported: \`${publicAddress}\``;
+    const importWalletSuccessMessage = `✅ Your ${chainName} wallet has been imported: \`${publicAddress}\``;
     const importWalletSuccessKeyboard = {
         inline_keyboard: [[
             { text: "💰 View wallet", callback_data: "view_wallet" },

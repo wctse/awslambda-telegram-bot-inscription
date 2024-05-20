@@ -16,13 +16,18 @@ export async function handleMainMenu(chatId) {
         getUnits(chainName)
     ]);
 
-    const mainMenuMessage = 
-    `🐉 Welcome to Inscription Dragon, the omnichain bot for inscriptions. \n` + 
-    `\n` +
-    `Current chain: ${chainName}\n` +
-    `Current gas price: ${gasPrice} ${gasUnitName}\n` +
-    `\n` +
-    `Choose an option:`;
+    let mainMenuMessage = 
+        `🐉 Welcome to Inscription Dragon, the omnichain bot for inscriptions. \n` + 
+        `\n` +
+        `Current chain: ${chainName}\n`
+
+    // If the blockchain has floating gas prices, show the current gas price
+    if (gasPrice) {
+        mainMenuMessage += `Current gas price: ${gasPrice} ${gasUnitName}\n`;
+    }
+
+    mainMenuMessage += `\n` +
+        `Choose an option:`;
 
     const mainMenuKeyboard = {
         inline_keyboard: [
@@ -55,8 +60,8 @@ export async function handleMainMenu(chatId) {
 
     const noWalletKeyboard = [
         [
-            { text: "🆕 Create wallet", callback_data: "main_menu_create_wallet" },
-            { text: "⚡ Import wallet", callback_data: "main_menu_import_wallet" }
+            { text: "🆕 Create wallet", callback_data: `main_menu_create_wallet_${chainName}` },
+            { text: "⚡ Import wallet", callback_data: `main_menu_import_wallet_${chainName}` }
         ]
     ];
 

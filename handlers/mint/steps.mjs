@@ -1,8 +1,9 @@
 import { bot, mainMenuKeyboard, cancelMainMenuKeyboard, divider } from '../../common/bot.mjs';
 import { getItemFromDb, editItemInDb  } from '../../common/db/dbOperations.mjs';
 import { editUserState, getCurrentChain } from '../../common/db/userDb.mjs';
-import { assembleData, getProtocols, getUnits, validateAmount, validateEnoughBalance } from '../../services/processServices.mjs';
+import { assembleData, getInscriptionListPageMessage, getInscriptionTokenPageMessage, getNotEnoughBalanceMessage, getProtocols, getUnits, validateAmount, validateEnoughBalance } from '../../services/processServices.mjs';
 import { getAssetBalance } from '../../services/processServices.mjs';
+import { mintDescriptionMessage } from './constants.mjs';
 
 const processTable = process.env.PROCESS_TABLE_NAME;
 
@@ -14,18 +15,12 @@ const processTable = process.env.PROCESS_TABLE_NAME;
 export async function handleMintInitiate(chatId) {
     const chainName = await getCurrentChain(chatId);
     const supportedProtocols = await getProtocols(chainName);
-    const [ assetBalance, publicAddress ] = await getAssetBalance(chatId, chainName, true);
-
-    const mintDescriptionMessage = 
-        "✍️ *Mint*\n" +
-        "\n" +
-        "This feature mints new inscription tokens that was deployed. \n" +
-        divider +
-        "\n";
+    const [assetBalance, publicAddress] = await getAssetBalance(chatId, chainName, true);
+    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     if (assetBalance == 0) {
         const noAssetMessage = mintDescriptionMessage + 
-            "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
+            `⚠️ You don't have any ${assetName} in your wallet. Please transfer some ${assetName} to your wallet first.`;
         
         await bot.sendMessage(chatId, noAssetMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown'});
         return;
@@ -35,12 +30,14 @@ export async function handleMintInitiate(chatId) {
         "Please choose the protocol to use, or input the whole inscription data directly.";
 
     const mintProtocolInputKeyboard = {
-        inline_keyboard: [
-        supportedProtocols.map(supportedProtocol => [{ text: supportedProtocol, callback_data: `multi_mint_protocol_${supportedProtocol}` }]).flat(),
+        inline_keyboard:
         [
-            { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
-        ]    
-    ]};
+            supportedProtocols.map(protocol => [{text: protocol, callback_data: `mint_protocol_${protocol}`}]).flat(),
+            [
+                { text: "❌ Cancel and Main Menu", callback_data: "cancel_main_menu" }
+            ]    
+        ]
+    };
 
     await Promise.all([
         editUserState(chatId, 'MINT_INITIATED'),
@@ -56,14 +53,15 @@ export async function handleMintInitiate(chatId) {
  * @param {str} protocol Protocol of the token to mint
  */
 export async function handleMintProtocolInput(chatId, protocol) {
-    // Write the user input token standard to DynamoDB
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
+    const chainName = processItem.mintChain;
 
-    const mintTokenInputMessage = 
+    let mintTokenInputMessage = 
         `✅ You have chosen \`${protocol}\` as the protocol. \n` +
         `\n` +
-        `👇 Please input the token ticker.\n` +
-        `\n` +
-        `📖 [You can search for existing tokens on ierc20.com.](https://app.ierc20.com/)`;
+        `👇 Please input the token ticker.\n`
+    
+    mintTokenInputMessage += `\n` + await getInscriptionListPageMessage(chainName, protocol);
 
     await Promise.all([
         editItemInDb(processTable, { userId: chatId }, { mintProtocol: protocol }),
@@ -79,12 +77,17 @@ export async function handleMintProtocolInput(chatId, protocol) {
  * @param {str} ticker Ticker of the token to mint
  */
 export async function handleMintTickerInput(chatId, ticker) {
-    const mintAmountInputMessage =
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
+    const chainName = processItem.mintChain;
+    const protocol = processItem.mintProtocol;
+
+    let mintAmountInputMessage =
         `✅ You have chosen \`${ticker}\` as the token ticker.\n` +
         `\n` +
         `👇 Please input the amount to mint. Do not exceed the minting limit.\n` +
-        `\n` +
-        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
+        `\n`
+    
+    mintAmountInputMessage += await getInscriptionTokenPageMessage(chainName, protocol, ticker);
 
     await Promise.all([
         editItemInDb(processTable, { userId: chatId }, { mintTicker: ticker }),
@@ -124,13 +127,14 @@ export async function handleMintAmountInput(chatId, amount) {
         `Protocol: \`${protocol}\`\n` +
         `Ticker: \`${ticker}\`\n` +
         `Amount: \`${amount}\`\n` +
-        `\n` +
-        `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+        `\n`
+    
+    if (txCost && txCostUsd) {
+        mintReviewMessage += `Estimated Cost: ${txCost} ${assetName} (\$${txCostUsd})`;
+    }
 
     if (!hasEnoughBalance) {
-        mintReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the transaction is likely to fail. ` +
-            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+        mintReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     mintReviewMessage += "\n\n" +

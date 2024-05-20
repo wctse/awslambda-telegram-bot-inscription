@@ -14,9 +14,13 @@ import { handleInvalidInput } from "../handlers/invalidInput.mjs";
 export async function routeCallback(chatId, data, userState, messageId) {
     console.info('Callback query received: ', data, ' from chatId: ', chatId, ' with user state: ', userState);
     
+    if (data === 'no_action') {
+        return;
+    }
+
     // -- START -- //
     // Create wallet in start
-    if (data === 'start_create_wallet' && userState === 'IDLE') {
+    else if (data === 'start_create_wallet' && userState === 'IDLE') {
         await handleCreateWalletInitiate(chatId);
     }
 
@@ -106,11 +110,22 @@ export async function routeCallback(chatId, data, userState, messageId) {
         await handleMainMenu(chatId);
     }
 
+    else if (data.startsWith('main_menu_create_wallet_') && userState === 'IDLE') {
+        const chainName = data.split('_')[4];
+        await handleCreateWalletChainName(chatId, chainName);
+    }
+
+    else if (data.startsWith('main_menu_import_wallet_') && userState === 'IDLE') {
+        const chainName = data.split('_')[4];
+        await handleImportWalletChainName(chatId, chainName);
+    }
+
 
     // -- MINT -- //
-    // ierc20 in mint step 1
-    else if (data === 'mint_protocol_ierc-20' && userState === 'MINT_INITIATED') {
-        await handleMintProtocolInput(chatId, 'ierc-20');
+    // protocol in mint step 1
+    else if (data.startsWith('mint_protocol_') && userState === 'MINT_INITIATED') {
+        const protocol = data.split('_')[2];
+        await handleMintProtocolInput(chatId, protocol);
     }
 
     // Confirm in mint step 4
@@ -123,15 +138,25 @@ export async function routeCallback(chatId, data, userState, messageId) {
         await handleMintRepeat(chatId);
     }
 
+    // Start over in mint step 5
+    else if (data === 'mint' && userState === 'MINT_CONFIRMED') {
+        await handleMintInitiate(chatId);
+    }
+
+    // View wallet button in mint step 5
+    else if (data === 'view_wallet' && userState === 'MINT_CONFIRMED') {
+        await handleViewWallet(chatId);
+    }
 
     // -- MULTI-MINT -- //
     // Refresh in multi-mint step 1, multi-mint in progress condition
     else if (data === 'multi_mint_refresh' && userState === 'IDLE') {
         await handleMultiMintInitiate(chatId);
     }
-    // ierc20 in multi-mint step 1
-    else if (data === 'multi_mint_protocol_ierc-20' && userState === 'MULTI_MINT_INITIATED') {
-        await handleMultiMintProtocolInput(chatId, 'ierc-20');
+    // protocol in multi-mint step 1
+    else if (data.startsWith('multi_mint_protocol') && userState === 'MULTI_MINT_INITIATED') {
+        const protocol = data.split('_')[3];
+        await handleMultiMintProtocolInput(chatId, protocol);
     }
 
     // 10 times in multi-mint step 4

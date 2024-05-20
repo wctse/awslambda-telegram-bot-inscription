@@ -2,7 +2,7 @@ import { bot, cancelMainMenuKeyboard, divider, mainMenuKeyboard } from "../commo
 import { deleteItemFromDb, editItemInDb, getItemFromDb } from "../common/db/dbOperations.mjs";
 import { getWalletAddress } from '../common/db/walletDb.mjs';
 import { editUserState, getCurrentChain } from '../common/db/userDb.mjs';
-import { assembleData, getAssetBalance, getProtocols, getUnits, validateAmount, validateEnoughBalance } from "../services/processServices.mjs";
+import { assembleData, getAssetBalance, getInscriptionListPageMessage, getInscriptionTokenPageMessage, getNotEnoughBalanceMessage, getProtocols, getUnits, validateAmount, validateEnoughBalance } from "../services/processServices.mjs";
 import { round } from "../common/utils.mjs";
 
 const walletTable = process.env.WALLET_TABLE_NAME;
@@ -16,8 +16,15 @@ const multiMintTable = process.env.MULTI_MINT_TABLE_NAME;
  */
 export async function handleMultiMintInitiate(chatId) {
     const chainName = await getCurrentChain(chatId);
+
+    if (!(chainName in ['Ethereum'])) {
+        await bot.sendMessage(chatId, `⚠️ Multi-mint not yet supported on ${chainName}.`, { reply_markup: mainMenuKeyboard });
+        return;
+    }
+
     const [assetBalance, publicAddress] = await getAssetBalance(chatId, chainName, true)
     const supportedProtocols = await getProtocols(chainName);
+    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     const multiMintItem = await getItemFromDb(multiMintTable, { userId: chatId, publicAddress: publicAddress });
 
@@ -30,7 +37,7 @@ export async function handleMultiMintInitiate(chatId) {
 
     if (assetBalance == 0) {
         const noAssetMessage = multiMintDescriptionMessage + 
-            "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
+            `⚠️ You don't have any ${assetName} in your wallet. Please transfer some ${assetName} to your wallet first.`;
         
         await bot.sendMessage(chatId, noAssetMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown' });
         return;
@@ -92,13 +99,15 @@ export async function handleMultiMintInitiate(chatId) {
  * @param {str} protocol Protocol of the token to mint
  */
 export async function handleMultiMintProtocolInput(chatId, protocol) {
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
+    const chainName = processItem.multiMintChain;
 
-    const multiMintTokenInputMessage = 
+    let multiMintTokenInputMessage = 
         `✅ You have chosen \`${protocol}\` as the protocol. \n` +
         `\n` +
-        `👇 Please input the token ticker.\n` +
-        `\n` +
-        `📖 [You can search for existing tokens on ierc20.com.](https://app.ierc20.com/)`;
+        `👇 Please input the token ticker.\n`
+        
+    multiMintTokenInputMessage += `\n` + await getInscriptionListPageMessage(chainName, protocol);
 
     await Promise.all([
         editItemInDb(processTable, { userId: chatId }, { multiMintProtocol: protocol }),
@@ -114,12 +123,16 @@ export async function handleMultiMintProtocolInput(chatId, protocol) {
  * @param {str} ticker Ticker of the token to mint
  */
 export async function handleMultiMintTickerInput(chatId, ticker) {
-    const multiMintAmountInputMessage =
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
+    const chainName = processItem.multiMintChain;
+    const protocol = processItem.multiMintProtocol;
+
+    let multiMintAmountInputMessage =
         `✅ You have chosen \`${ticker}\` as the token ticker.\n` +
         `\n` +
-        `👇 Please input the amount to mint each time. Do not exceed the minting limit.\n` +
-        `\n` +
-        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
+        `👇 Please input the amount to mint each time. Do not exceed the minting limit.\n`
+    
+    multiMintAmountInputMessage += `\n` + await getInscriptionTokenPageMessage(chainName, protocol, ticker);
 
     await Promise.all([
         editItemInDb(processTable, { userId: chatId }, { multiMintTicker: ticker }),
@@ -140,14 +153,17 @@ export async function handleMultiMintAmountInput(chatId, amount) {
         return;
     }
 
-    const ticker = (await getItemFromDb(processTable, { userId: chatId })).multiMintTicker;
+    const processItem = await getItemFromDb(processTable, { userId: chatId });
+    const chainName = processItem.multiMintChain;
+    const protocol = processItem.multiMintProtocol;
+    const ticker = processItem.multiMintTicker;
 
-    const multiMintTimesInputMessage =
+    let multiMintTimesInputMessage =
         `✅ You have specified to mint \`${amount}\` tokens each time.\n` +
         `\n` +
-        `👇 Please input or choose the amount of times to mint. Be careful that tokens minted beyond the limit per address would be invalid.\n` +
-        `\n` +
-        `📖 [Check the ${ticker} minting limit on ierc20.com.](https://app.ierc20.com/tick/${ticker})`;
+        `👇 Please input or choose the amount of times to mint. Be careful that tokens minted beyond the limit per address would be invalid.\n`
+
+    multiMintTimesInputMessage += `\n` + getInscriptionTokenPageMessage(chainName, protocol, ticker);
 
     const multiMintTimesInputKeyboard = {
         inline_keyboard: 
@@ -198,7 +214,7 @@ export async function handleMultiMintTimesInput(chatId, times) {
     const data = await assembleData(chainName, protocol, 'mint', { protocol, ticker, amount });
     const [assetName, _gasUnitName] = await getUnits(chainName);
     
-    let [hasEnoughBalance, [_assetBalance, currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, data, true, [null, 0, 4, 2]);
+    let [hasEnoughBalance, [_assetBalance, _currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, data, true, [null, 0, 4, 2]);
 
     txCost = txCost * times;
     txCostUsd = txCostUsd * times;
@@ -214,13 +230,10 @@ export async function handleMultiMintTimesInput(chatId, times) {
         `\n` +
         `The mint will be executed for \`${times}\` times.\n` +
         `\n` +
-        `Current Gas Price: ${currentGasPrice} Gwei\n` +
         `Estimated Total Cost: ${txCost} ETH (\$${txCostUsd})`;
 
     if (!hasEnoughBalance) {
-        multiMintReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the multi-mint process is likely to fail midway. ` +
-            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+        multiMintReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     const multiMintReviewKeyboard = {
@@ -364,6 +377,7 @@ export async function handleMultiMintCommand(chatId, text) {
 
     const chainName = await getCurrentChain(chatId);
     const [assetBalance, publicAddress] = await getAssetBalance(chatId, chainName, true)
+    const [assetName, _gasUnitName] = await getUnits(chainName);
 
     const multiMintItem = await getItemFromDb(multiMintTable, { userId: chatId, publicAddress: publicAddress });
 
@@ -376,7 +390,7 @@ export async function handleMultiMintCommand(chatId, text) {
 
     if (assetBalance == 0) {
         const noAssetMessage = multiMintDescriptionMessage + 
-            "⚠️ You don't have any ETH in your wallet. Please transfer some ETH to your wallet first.";
+            `⚠️ You don't have any ${assetName} in your wallet. Please transfer some ${assetName} to your wallet first.`;
         
         await bot.sendMessage(chatId, noAssetMessage, { reply_markup: mainMenuKeyboard, parse_mode: 'Markdown' });
         return;
@@ -414,9 +428,8 @@ export async function handleMultiMintCommand(chatId, text) {
     }
     
     const data = await assembleData(chainName, protocol, 'mint', { protocol, ticker, amount });
-    const [assetName, _gasUnitName] = await getUnits(chainName);
     
-    let [hasEnoughBalance, [_assetBalance, currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, data, true, [null, 0, null, null]);
+    let [hasEnoughBalance, [_assetBalance, _currentGasPrice, txCost, txCostUsd]] = await validateEnoughBalance(chatId, chainName, data, true, [null, 0, null, null]);
 
     txCost = round(txCost * times, 4);
     txCostUsd = round(txCostUsd * times, 2);
@@ -432,13 +445,10 @@ export async function handleMultiMintCommand(chatId, text) {
         `\n` +
         `The mint will be executed for \`${times}\` times.\n` +
         `\n` +
-        `Current Gas Price: ${currentGasPrice} Gwei\n` +
         `Estimated Total Cost: ${txCost} ETH (\$${txCostUsd})`;
 
     if (!hasEnoughBalance) {
-        multiMintReviewMessage += "\n\n" +    
-            `⛔ WARNING: The ${assetName} balance in the wallet is insufficient for the estimated transaction cost. You can still proceed, but the multi-mint process is likely to fail midway. ` +
-            `Please consider waiting for the transaction price to drop, or transfer more ${assetName} to the wallet.`;
+        multiMintReviewMessage += await getNotEnoughBalanceMessage(chainName, assetName);
     }
 
     const multiMintReviewKeyboard = {

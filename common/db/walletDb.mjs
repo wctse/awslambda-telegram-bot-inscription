@@ -2,18 +2,6 @@ import { getItemsFromDb, editItemInDb } from './dbOperations.mjs';
 
 const walletTable = process.env.WALLET_TABLE_NAME;
 
-// Get the wallet address for a specific user ID
-// TODO: Delete this function and use getWalletAddress instead
-export async function getWalletAddressByUserId(chatId) {
-    const walletItems = getItemsFromDb(walletTable, `userId`, chatId);
-
-    if (walletItems.length === 0) {
-        return null;
-    }
-
-    return walletItems[0].publicAddress;
-}
-
 export async function getWalletItem(chatId, chainName) {
     const walletTable = process.env.WALLET_TABLE_NAME;
     const walletItems = await getItemsFromDb(walletTable, `userId`, chatId);

@@ -12,14 +12,12 @@ import { getProvider } from './providers.mjs';
  * @param {num} amount Amount of ETH to send. Default is 0.
  * @returns 
  */
-export async function sendEvmTransaction(chainName, privateKey, data = '', to = null, gasSetting = 'auto', amount = 0) {
+export async function sendEvmTransaction(chainName, privateKey, data = null, to = null, gasSetting = 'auto', amount = 0) {
     const provider = getProvider(chainName);
     const wallet = new ethers.Wallet(privateKey, provider);
     data = data ? data : '';
 
     if (!to) {
-        to = wallet.address;
-    } else if (to === 'zero') {
         to = ZERO_ADDRESS;
     }
 
@@ -47,7 +45,9 @@ export async function sendEvmTransaction(chainName, privateKey, data = '', to = 
     try {
         const txResponse = await wallet.sendTransaction(transaction);
         console.info('Transaction sent:', txResponse);
-        return txResponse;
+
+        const {hash, timestamp} = txResponse;
+        return {txHash: hash, txTimestamp: timestamp};
 
     } catch (error) {
         console.error('Error sending transaction:', error);
